@@ -1,0 +1,8 @@
+cryptography>=42.0.0
+py-clob-client>=0.26.0
+py-clob-client-v2>=1.0.0
+py-builder-relayer-client>=0.0.2
+py-builder-signing-sdk>=0.0.2
+truststore>=0.10.0
+tzdata>=2024.1
+websockets>=12.0

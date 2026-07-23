@@ -1,0 +1,13 @@
+{
+  "pairs": [
+    {
+      "name": "Example Team wins",
+      "kalshi_ticker": "EXAMPLE-TICKER",
+      "polymarket_yes_token_id": "1234567890",
+      "polymarket_no_token_id": "9876543210",
+      "rules_compatible": false,
+      "notes": "Set rules_compatible true only after manually confirming both platforms resolve the same event in the same way."
+    }
+  ]
+}
+

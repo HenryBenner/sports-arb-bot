@@ -1,0 +1,66 @@
+[
+  {
+    "canonical_id": "mlb:team:tor",
+    "sport": "baseball",
+    "league": "mlb",
+    "official_name": "Toronto Blue Jays",
+    "aliases": ["Toronto Blue Jays", "Blue Jays", "Toronto", "TOR"],
+    "platform_ids": {"kalshi": ["TOR"], "polymarket": ["Toronto Blue Jays"]}
+  },
+  {
+    "canonical_id": "mlb:team:sd",
+    "sport": "baseball",
+    "league": "mlb",
+    "official_name": "San Diego Padres",
+    "aliases": ["San Diego Padres", "Padres", "San Diego", "SD", "SDP"],
+    "platform_ids": {"kalshi": ["SD"], "polymarket": ["San Diego Padres"]}
+  },
+  {
+    "canonical_id": "mlb:team:al",
+    "sport": "baseball",
+    "league": "mlb",
+    "official_name": "American League",
+    "aliases": ["American League", "American All-Stars", "AL"],
+    "platform_ids": {"kalshi": ["AL"], "polymarket": ["American League"]}
+  },
+  {
+    "canonical_id": "mlb:team:nl",
+    "sport": "baseball",
+    "league": "mlb",
+    "official_name": "National League",
+    "aliases": ["National League", "National All-Stars", "NL"],
+    "platform_ids": {"kalshi": ["NL"], "polymarket": ["National League"]}
+  },
+  {
+    "canonical_id": "mlb:team:kc",
+    "sport": "baseball",
+    "league": "mlb",
+    "official_name": "Kansas City Royals",
+    "aliases": ["Kansas City Royals", "Royals", "Kansas City", "KC"],
+    "platform_ids": {"kalshi": ["KC"], "polymarket": ["Kansas City Royals"]}
+  },
+  {
+    "canonical_id": "mlb:team:nym",
+    "sport": "baseball",
+    "league": "mlb",
+    "official_name": "New York Mets",
+    "aliases": ["New York Mets", "Mets", "NY Mets", "NYM"],
+    "platform_ids": {"kalshi": ["NYM"], "polymarket": ["New York Mets"]}
+  },
+  {
+    "canonical_id": "mlb:team:sf",
+    "sport": "baseball",
+    "league": "mlb",
+    "official_name": "San Francisco Giants",
+    "aliases": ["San Francisco Giants", "Giants", "San Francisco", "SF"],
+    "platform_ids": {"kalshi": ["SF"], "polymarket": ["San Francisco Giants"]}
+  },
+  {
+    "canonical_id": "mlb:team:col",
+    "sport": "baseball",
+    "league": "mlb",
+    "official_name": "Colorado Rockies",
+    "aliases": ["Colorado Rockies", "Rockies", "Colorado", "COL"],
+    "platform_ids": {"kalshi": ["COL"], "polymarket": ["Colorado Rockies"]}
+  }
+]

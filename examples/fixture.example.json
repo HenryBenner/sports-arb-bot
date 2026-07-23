@@ -1,0 +1,22 @@
+{
+  "kalshi": {
+    "EXAMPLE-TICKER": {
+      "yes_asks": [
+        { "price_cents": 40, "size": "10" }
+      ],
+      "no_asks": [
+        { "price_cents": 62, "size": "10" }
+      ]
+    }
+  },
+  "polymarket": {
+    "1234567890": {
+      "yes_asks": [
+        { "price_cents": 51, "size": "10" }
+      ],
+      "no_asks": [
+        { "price_cents": 49, "size": "10" }
+      ]
+    }
+  }
+}
