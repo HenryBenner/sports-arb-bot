@@ -50,7 +50,7 @@ class TradeExecutor:
         if workflow != self.allowed_workflow:
             return False, f"live execution is only allowed from {self.allowed_workflow}"
         if not opportunity.executable:
-            return False, "opportunity is blocked"
+            return False, _blocked_arb_message(opportunity)
         readiness = self.ready_for_immediate_execution()
         if readiness:
             return False, readiness
@@ -76,7 +76,7 @@ class TradeExecutor:
         if workflow != self.allowed_workflow:
             return False, f"live execution is only allowed from {self.allowed_workflow}"
         if not opportunity.executable:
-            return False, "opportunity is blocked"
+            return False, _blocked_arb_message(opportunity)
         readiness = self.ready_for_immediate_execution()
         if readiness:
             return False, readiness
@@ -793,6 +793,11 @@ def _level_text(level: BookLevel | None) -> str:
     if level is None:
         return "none"
     return f"{level.price_cents}c x {level.size}"
+
+
+def _blocked_arb_message(opportunity: ArbOpportunity) -> str:
+    details = "; ".join(str(reason) for reason in opportunity.blockers if str(reason).strip())
+    return "opportunity is blocked" if not details else f"opportunity is blocked: {details}"
 
 
 def _decimal_text(value: Decimal) -> str:

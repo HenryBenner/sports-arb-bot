@@ -21,7 +21,6 @@ from firstbot.hot import (
     LiveLegBook,
     _arb_record,
     _log_dir_path,
-    _refresh_live_book_timestamps,
     _market_resolution_safety_reason,
     _poll_error_summary,
     _poll_retry_seconds,
@@ -1735,7 +1734,7 @@ class HotTriggerTests(unittest.TestCase):
 
         self.assertIn("stale polymarket yes book", result.blockers)
 
-    def test_websocket_state_refresh_keeps_ready_books_evaluable_on_new_update(self):
+    def test_new_venue_update_does_not_freshen_other_venue_book(self):
         watch = HotWatchManager(600, 3, 20, True, clock=lambda: NOW).add_or_refresh(
             ph_opportunity(), ph_outcome_keys()
         )[0]
@@ -1751,12 +1750,18 @@ class HotTriggerTests(unittest.TestCase):
         }
         engine = HotTriggerEngine(settings(), trigger_cost_cents=99, near_miss_cost_cents=100, stale_ms=1000)
 
-        _refresh_live_book_timestamps(watch.books, NOW)
+        watch.books[(Exchange.KALSHI, "KALSHI-1", Side.NO)] = LiveLegBook(
+            Exchange.KALSHI,
+            "KALSHI-1",
+            Side.NO,
+            BookLevel(2, Decimal("6")),
+            NOW,
+            True,
+            True,
+        )
         result = engine.evaluate(watch, NOW)
 
-        self.assertEqual(result.gross_cost_cents, 98)
-        self.assertNotIn("net profit 1c is not positive after buffers", result.blockers)
-        self.assertNotIn("stale polymarket yes book", result.blockers)
+        self.assertIn("stale polymarket yes book", result.blockers)
 
     def test_paper_trigger_log_contains_books_and_verified_state(self):
         with tempfile.TemporaryDirectory() as tmp:

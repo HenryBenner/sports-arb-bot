@@ -104,6 +104,31 @@ def executable_opportunity():
 
 
 class DeployGuardTests(unittest.TestCase):
+    def test_executor_reports_exact_opportunity_blocker(self):
+        opportunity = ArbOpportunity(
+            pair_name="Blocked Detail",
+            buy_yes=ArbLeg(Exchange.KALSHI, "K", Side.YES, 13, Decimal("5")),
+            buy_no=ArbLeg(Exchange.POLYMARKET, "P", Side.NO, 17, Decimal("5")),
+            gross_cost_cents=30,
+            buffers_cents=Decimal("3"),
+            net_profit_cents=Decimal("67"),
+            executable=False,
+            blockers=(
+                "approved leg limits must be on opposite sides of 50c "
+                "(got 13c and 17c)",
+            ),
+        )
+        executor = TradeExecutor(ReadyKalshi(), ReadyPolymarket())
+
+        submitted, message = executor.execute(
+            opportunity,
+            workflow="run-hot-arb",
+        )
+
+        self.assertFalse(submitted)
+        self.assertIn("opportunity is blocked:", message)
+        self.assertIn("got 13c and 17c", message)
+
     def test_run_handles_keyboard_interrupt_cleanly(self):
         code = _run(lambda: (_ for _ in ()).throw(KeyboardInterrupt()))
 

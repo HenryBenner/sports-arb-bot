@@ -818,7 +818,6 @@ class HotArbRunner:
                     return
                 now = self.clock()
                 watch.books[(book.exchange, book.market_id, book.side)] = _book_with_timestamp(book, now)
-                _refresh_live_book_timestamps(watch.books, now)
                 evaluation = engine.evaluate(watch, now)
                 if evaluation.gross_cost_cents and evaluation.net_profit_cents > 0:
                     if self._uses_previously_triggered_contract(watch.opportunity):
@@ -1687,15 +1686,6 @@ def parse_datetime(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
-
-
-def _refresh_live_book_timestamps(
-    books: dict[tuple[Exchange, str, Side], LiveLegBook],
-    now: datetime,
-) -> None:
-    for key, book in list(books.items()):
-        if book.connected and book.snapshot_ready and book.updated_at is not None:
-            books[key] = _book_with_timestamp(book, now)
 
 
 def _book_with_timestamp(book: LiveLegBook, updated_at: datetime) -> LiveLegBook:
