@@ -231,6 +231,11 @@ class DeployGuardTests(unittest.TestCase):
         self.assertEqual(len(polymarket.orders), 1)
         self.assertEqual(len(kalshi.orders), 2)
         self.assertEqual(kalshi.orders[1]["price_cents"], 47)
+        self.assertIsNotNone(executor.last_submitted_opportunity)
+        self.assertEqual(
+            executor.last_submitted_opportunity.buy_yes.avg_price_cents,
+            Decimal("47"),
+        )
 
     def test_executor_does_not_retry_missing_leg_past_chase_cap(self):
         class ChaseTooFarKalshi(ReadyKalshi):
@@ -530,7 +535,7 @@ class DeployGuardTests(unittest.TestCase):
         self.assertTrue(submitted)
         self.assertIn("orders submitted", message)
 
-    def test_executor_blocks_polymarket_leg_below_one_dollar_before_first_order(self):
+    def test_executor_blocks_when_live_depth_cannot_fit_minimum_equal_batch(self):
         opportunity = ArbOpportunity(
             pair_name="Low Notional",
             buy_yes=ArbLeg(Exchange.KALSHI, "K", Side.YES, 20, Decimal("5")),
@@ -550,10 +555,11 @@ class DeployGuardTests(unittest.TestCase):
         submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
 
         self.assertFalse(submitted)
-        self.assertIn("below $1 minimum", message)
+        self.assertIn("polymarket_min_order_size", message)
+        self.assertIn("minimum of 6 shares", message)
         self.assertIn("before order submission", message)
 
-    def test_executor_increases_profitable_size_to_meet_polymarket_minimum(self):
+    def test_executor_uses_smallest_equal_size_that_meets_polymarket_minimum(self):
         opportunity = ArbOpportunity(
             pair_name="Resize Minimum",
             buy_yes=ArbLeg(Exchange.KALSHI, "K", Side.YES, 20, Decimal("5")),
@@ -575,8 +581,36 @@ class DeployGuardTests(unittest.TestCase):
         )
 
         self.assertTrue(submitted)
-        self.assertIn("refreshed blended FOK size=10", message)
+        self.assertIn("refreshed smallest equal FOK size=6", message)
         self.assertIn("orders submitted", message)
+        self.assertEqual(polymarket.orders[0]["size"], Decimal("6"))
+        self.assertEqual(kalshi.orders[0]["count"], 6)
+
+    def test_executor_uses_polymarket_book_min_order_size_for_both_legs(self):
+        class ConstrainedPolymarket(LadderPolymarket):
+            def get_token_min_order_size(self, token_id):
+                return Decimal("5")
+
+        kalshi = LadderKalshi([BookLevel(60, Decimal("20"))])
+        polymarket = ConstrainedPolymarket([BookLevel(30, Decimal("20"))])
+        opportunity = ArbOpportunity(
+            pair_name="Published Minimum",
+            buy_yes=ArbLeg(Exchange.KALSHI, "K", Side.YES, 60, Decimal("20")),
+            buy_no=ArbLeg(Exchange.POLYMARKET, "P", Side.NO, 30, Decimal("20")),
+            gross_cost_cents=90,
+            buffers_cents=Decimal("0"),
+            net_profit_cents=Decimal("10"),
+            executable=True,
+            blockers=(),
+        )
+        executor = TradeExecutor(kalshi, polymarket, max_leg_usd=Decimal("10"))
+
+        submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
+
+        self.assertTrue(submitted)
+        self.assertIn("smallest equal FOK size=5", message)
+        self.assertEqual(polymarket.orders[0]["size"], Decimal("5"))
+        self.assertEqual(kalshi.orders[0]["count"], 5)
 
     def test_executor_allows_worse_refresh_when_basket_still_profitable(self):
         kalshi = ReadyKalshi()
@@ -597,7 +631,7 @@ class DeployGuardTests(unittest.TestCase):
         submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
 
         self.assertTrue(submitted)
-        self.assertIn("refreshed blended FOK", message)
+        self.assertIn("refreshed smallest equal FOK", message)
         self.assertIn("net=27c", message)
 
     def test_executor_blocks_worse_refresh_when_profit_disappears(self):
@@ -621,7 +655,7 @@ class DeployGuardTests(unittest.TestCase):
         self.assertFalse(submitted)
         self.assertIn("refreshed basket is no longer profitable", message)
 
-    def test_executor_walks_profitable_orderbook_levels_for_blended_size(self):
+    def test_executor_stops_at_first_exchange_valid_profitable_equal_size(self):
         kalshi = LadderKalshi(
             [
                 BookLevel(40, Decimal("1")),
@@ -651,8 +685,8 @@ class DeployGuardTests(unittest.TestCase):
         submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
 
         self.assertTrue(submitted)
-        self.assertIn("refreshed blended FOK size=6", message)
-        self.assertIn("limit=55c avg=49.1667c", message)
+        self.assertIn("refreshed smallest equal FOK size=3", message)
+        self.assertIn("limit=45c avg=43.3333c", message)
 
     def test_executor_stops_before_next_blended_contract_turns_unprofitable(self):
         kalshi = LadderKalshi(
@@ -682,7 +716,7 @@ class DeployGuardTests(unittest.TestCase):
         submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
 
         self.assertTrue(submitted)
-        self.assertIn("refreshed blended FOK size=3", message)
+        self.assertIn("refreshed smallest equal FOK size=3", message)
         self.assertIn("limit=40c avg=40c", message)
 
     def test_executor_blended_fill_respects_per_leg_dollar_cap(self):
@@ -703,7 +737,36 @@ class DeployGuardTests(unittest.TestCase):
         submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
 
         self.assertTrue(submitted)
-        self.assertIn("refreshed blended FOK size=2", message)
+        self.assertIn("refreshed smallest equal FOK size=2", message)
+
+    def test_executor_blocks_when_remaining_budget_cannot_fit_next_minimum_batch(self):
+        kalshi = LadderKalshi([BookLevel(40, Decimal("10"))])
+        polymarket = LadderPolymarket([BookLevel(52, Decimal("10"))])
+        opportunity = ArbOpportunity(
+            pair_name="Remaining Budget",
+            buy_yes=ArbLeg(Exchange.KALSHI, "K", Side.YES, 40, Decimal("10")),
+            buy_no=ArbLeg(Exchange.POLYMARKET, "P", Side.NO, 52, Decimal("10")),
+            gross_cost_cents=92,
+            buffers_cents=Decimal("0"),
+            net_profit_cents=Decimal("8"),
+            executable=True,
+            blockers=(),
+        )
+        executor = TradeExecutor(kalshi, polymarket, max_leg_usd=Decimal("5"))
+
+        submitted, message = executor.execute(
+            opportunity,
+            workflow="run-hot-arb",
+            remaining_leg_usd={
+                Exchange.KALSHI: Decimal("5"),
+                Exchange.POLYMARKET: Decimal("0.96"),
+            },
+        )
+
+        self.assertFalse(submitted)
+        self.assertIn("incremental_budget_exhausted", message)
+        self.assertEqual(kalshi.orders, [])
+        self.assertEqual(polymarket.orders, [])
 
 
 if __name__ == "__main__":

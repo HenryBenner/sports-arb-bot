@@ -38,8 +38,15 @@ class TradeExecutor:
         self.allowed_workflow = allowed_workflow
         self.max_leg_usd = Decimal(max_leg_usd)
         self.settings = settings
+        self.last_submitted_opportunity: ArbOpportunity | None = None
 
-    def execute(self, opportunity: ArbOpportunity, workflow: str = "unknown") -> tuple[bool, str]:
+    def execute(
+        self,
+        opportunity: ArbOpportunity,
+        workflow: str = "unknown",
+        remaining_leg_usd: dict[Exchange, Decimal] | None = None,
+    ) -> tuple[bool, str]:
+        self.last_submitted_opportunity = None
         if workflow != self.allowed_workflow:
             return False, f"live execution is only allowed from {self.allowed_workflow}"
         if not opportunity.executable:
@@ -48,7 +55,10 @@ class TradeExecutor:
         if readiness:
             return False, readiness
         try:
-            opportunity, refresh_message = self._refresh_arb_for_immediate_fill(opportunity)
+            opportunity, refresh_message = self._refresh_arb_for_immediate_fill(
+                opportunity,
+                remaining_leg_usd=remaining_leg_usd,
+            )
         except Exception as exc:
             return False, f"live book refresh failed before order submission: {exc}"
         balance_blocker = self._polymarket_balance_block_reason(opportunity)
@@ -56,7 +66,13 @@ class TradeExecutor:
             return False, balance_blocker
         return self._submit_arb_orders(opportunity, prefix=refresh_message)
 
-    def execute_fast(self, opportunity: ArbOpportunity, workflow: str = "unknown") -> tuple[bool, str]:
+    def execute_fast(
+        self,
+        opportunity: ArbOpportunity,
+        workflow: str = "unknown",
+        remaining_leg_usd: dict[Exchange, Decimal] | None = None,
+    ) -> tuple[bool, str]:
+        self.last_submitted_opportunity = None
         if workflow != self.allowed_workflow:
             return False, f"live execution is only allowed from {self.allowed_workflow}"
         if not opportunity.executable:
@@ -64,25 +80,30 @@ class TradeExecutor:
         readiness = self.ready_for_immediate_execution()
         if readiness:
             return False, readiness
+        try:
+            opportunity = self._smallest_approved_equal_batch(
+                opportunity,
+                remaining_leg_usd=remaining_leg_usd,
+            )
+        except Exception as exc:
+            return False, f"fast path blocked before order submission: {exc}"
         balance_blocker = self._polymarket_balance_block_reason(opportunity)
         if balance_blocker:
             return False, balance_blocker
         try:
-            self._validate_polymarket_minimum_notional(
+            self._validate_polymarket_minimum_order_size(
                 opportunity.buy_yes,
-                BookLevel(opportunity.buy_yes.price_cents, opportunity.buy_yes.size),
                 opportunity.buy_yes.size,
             )
-            self._validate_polymarket_minimum_notional(
+            self._validate_polymarket_minimum_order_size(
                 opportunity.buy_no,
-                BookLevel(opportunity.buy_no.price_cents, opportunity.buy_no.size),
                 opportunity.buy_no.size,
             )
         except Exception as exc:
             return False, f"fast path blocked before order submission: {exc}"
         prefix = (
             "fast path skipped balance checks and REST book refresh; "
-            f"size={opportunity.buy_yes.size} "
+            f"smallest_equal_size={opportunity.buy_yes.size} "
             f"gross={_decimal_text(Decimal(opportunity.gross_cost_cents))}c "
             f"net={_decimal_text(opportunity.net_profit_cents)}c"
         )
@@ -124,7 +145,13 @@ class TradeExecutor:
                     original_error=exc,
                 )
                 if hedge_result is not None:
-                    hedge_response, hedge_detail = hedge_result
+                    hedge_response, hedge_detail, completed_leg = hedge_result
+                    completed_opportunity = _opportunity_with_completed_leg(
+                        opportunity,
+                        second_leg,
+                        completed_leg,
+                    )
+                    self.last_submitted_opportunity = completed_opportunity
                     prefix = f"{prefix}; " if prefix else ""
                     return (
                         True,
@@ -139,6 +166,7 @@ class TradeExecutor:
                 )
             return False, f"first leg failed before paired order submission: {exc}"
         prefix = f"{prefix}; " if prefix else ""
+        self.last_submitted_opportunity = opportunity
         return (
             True,
             f"{prefix}orders submitted: "
@@ -229,6 +257,7 @@ class TradeExecutor:
                     result,
                     f"attempt={attempt} limit={refreshed_leg.price_cents}c "
                     f"avg={_decimal_text(refreshed_leg.avg_price_cents or Decimal(refreshed_leg.price_cents))}c",
+                    refreshed_leg,
                 )
             except Exception as exc:
                 failures.append(f"retry {attempt}: {exc}")
@@ -262,9 +291,8 @@ class TradeExecutor:
             avg_price_cents=avg_cents,
         )
         if refreshed.exchange is Exchange.POLYMARKET:
-            self._validate_polymarket_minimum_notional(
+            self._validate_polymarket_minimum_order_size(
                 refreshed,
-                BookLevel(refreshed.price_cents, refreshed.size),
                 refreshed.size,
             )
             notional = _leg_notional_usd(refreshed)
@@ -281,38 +309,73 @@ class TradeExecutor:
                 )
         return refreshed
 
-    def _refresh_arb_for_immediate_fill(self, opportunity: ArbOpportunity) -> tuple[ArbOpportunity, str]:
+    def _refresh_arb_for_immediate_fill(
+        self,
+        opportunity: ArbOpportunity,
+        remaining_leg_usd: dict[Exchange, Decimal] | None = None,
+    ) -> tuple[ArbOpportunity, str]:
         yes_levels = self._fresh_ask_levels(opportunity.buy_yes)
         no_levels = self._fresh_ask_levels(opportunity.buy_no)
         contracts_cap = min(
             _whole_contracts(sum((level.size for level in yes_levels), Decimal("0"))),
             _whole_contracts(sum((level.size for level in no_levels), Decimal("0"))),
         )
-        fill = _largest_profitable_blended_fill(
+        leg_budgets = _leg_budgets(
+            self.max_leg_usd,
+            remaining_leg_usd,
+        )
+        polymarket_min_order_size = self._polymarket_minimum_contracts(opportunity)
+        fill = _smallest_profitable_equal_fill(
             opportunity.buy_yes,
             opportunity.buy_no,
             yes_levels,
             no_levels,
             contracts_cap,
-            self.max_leg_usd,
+            leg_budgets,
             self.settings,
             opportunity.buffers_cents,
+            polymarket_min_order_size=polymarket_min_order_size,
         )
         if fill.contracts < Decimal("1"):
+            unrestricted_fill = _smallest_profitable_equal_fill(
+                opportunity.buy_yes,
+                opportunity.buy_no,
+                yes_levels,
+                no_levels,
+                contracts_cap,
+                {
+                    Exchange.KALSHI: Decimal("Infinity"),
+                    Exchange.POLYMARKET: Decimal("Infinity"),
+                },
+                self.settings,
+                opportunity.buffers_cents,
+                polymarket_min_order_size=polymarket_min_order_size,
+            )
             best_yes = yes_levels[0] if yes_levels else None
             best_no = no_levels[0] if no_levels else None
+            if unrestricted_fill.contracts >= Decimal("1"):
+                raise RuntimeError(
+                    "incremental_budget_exhausted: remaining per-leg budget cannot fit "
+                    f"the smallest exchange-valid equal batch of {unrestricted_fill.contracts} "
+                    f"contracts (remaining Kalshi=${_decimal_text(leg_budgets[Exchange.KALSHI])}, "
+                    f"Polymarket=${_decimal_text(leg_budgets[Exchange.POLYMARKET])})"
+                )
+            if contracts_cap < polymarket_min_order_size:
+                raise RuntimeError(
+                    "polymarket_min_order_size: live equal depth cannot fit "
+                    f"Polymarket minimum of {polymarket_min_order_size} shares"
+                )
             raise RuntimeError(
-                "refreshed basket is no longer profitable: no profitable blended fill "
+                "refreshed basket is no longer profitable: no exchange-valid profitable "
+                "equal batch "
                 f"(best YES={_level_text(best_yes)}, best NO={_level_text(best_no)})"
             )
-        self._validate_polymarket_minimum_notional(
+        self._validate_polymarket_minimum_order_size(
             opportunity.buy_yes,
-            BookLevel(fill.yes_limit_cents, fill.contracts),
             fill.contracts,
         )
-        self._validate_polymarket_minimum_notional(
+        self._validate_polymarket_minimum_order_size(
             opportunity.buy_no,
-            BookLevel(fill.no_limit_cents, fill.contracts),
             fill.contracts,
         )
         buy_yes = replace(
@@ -336,12 +399,55 @@ class TradeExecutor:
             net_profit_cents=fill.net_profit_cents,
         )
         message = (
-            f"refreshed blended FOK size={fill.contracts} "
+            f"refreshed smallest equal FOK size={fill.contracts} "
             f"YES={buy_yes.exchange.value}:limit={buy_yes.price_cents}c avg={_decimal_text(fill.yes_avg_cents)}c "
             f"NO={buy_no.exchange.value}:limit={buy_no.price_cents}c avg={_decimal_text(fill.no_avg_cents)}c "
             f"gross_avg={_decimal_text(fill.gross_avg_cents)}c net={_decimal_text(fill.net_profit_cents)}c"
         )
         return refreshed, message
+
+    def _smallest_approved_equal_batch(
+        self,
+        opportunity: ArbOpportunity,
+        remaining_leg_usd: dict[Exchange, Decimal] | None,
+    ) -> ArbOpportunity:
+        contracts_cap = min(
+            _whole_contracts(opportunity.buy_yes.size),
+            _whole_contracts(opportunity.buy_no.size),
+        )
+        polymarket_leg = _polymarket_leg(opportunity)
+        if polymarket_leg is None:
+            minimum_contracts = Decimal("1")
+        else:
+            minimum_contracts = self._polymarket_minimum_contracts(opportunity)
+        if contracts_cap < minimum_contracts:
+            raise RuntimeError(
+                "polymarket_min_order_size: approved live depth cannot fit the "
+                f"smallest equal batch of {minimum_contracts} contracts"
+            )
+        budgets = _leg_budgets(self.max_leg_usd, remaining_leg_usd)
+        for leg in (opportunity.buy_yes, opportunity.buy_no):
+            required_usd = (
+                Decimal(leg.price_cents) * minimum_contracts / Decimal("100")
+            )
+            if required_usd > budgets[leg.exchange]:
+                raise RuntimeError(
+                    "incremental_budget_exhausted: remaining per-leg budget cannot fit "
+                    f"the smallest exchange-valid equal batch of {minimum_contracts} contracts"
+                )
+        return replace(
+            opportunity,
+            buy_yes=replace(
+                opportunity.buy_yes,
+                size=minimum_contracts,
+                avg_price_cents=Decimal(opportunity.buy_yes.price_cents),
+            ),
+            buy_no=replace(
+                opportunity.buy_no,
+                size=minimum_contracts,
+                avg_price_cents=Decimal(opportunity.buy_no.price_cents),
+            ),
+        )
 
     def _fresh_ask_levels(self, leg) -> list[BookLevel]:
         if leg.exchange is Exchange.KALSHI:
@@ -363,20 +469,40 @@ class TradeExecutor:
         else:
             raise RuntimeError(f"unsupported exchange for live refresh: {leg.exchange}")
 
-    def _validate_polymarket_minimum_notional(self, leg, refreshed_level, contracts: Decimal) -> None:
+    def _validate_polymarket_minimum_order_size(
+        self,
+        leg: ArbLeg,
+        contracts: Decimal,
+    ) -> None:
         if leg.exchange is not Exchange.POLYMARKET:
             return
-        notional = (Decimal(refreshed_level.price_cents) * contracts / Decimal("100")).quantize(Decimal("0.01"))
-        if notional >= Decimal("1"):
+        minimum_contracts = self._polymarket_minimum_contracts_for_leg(leg)
+        if contracts >= minimum_contracts:
             return
-        min_contracts = (Decimal("100") / Decimal(refreshed_level.price_cents)).to_integral_value(
-            rounding=ROUND_CEILING
-        )
         raise RuntimeError(
-            "polymarket_min_notional: Polymarket marketable BUY notional is below $1 minimum "
-            f"({contracts} contracts at {refreshed_level.price_cents}c = ${notional}); "
-            f"needs at least {min_contracts} contracts at this price, but no larger "
-            "profitable basket fits the configured bet limits"
+            "polymarket_min_order_size: Polymarket order is below the live book minimum "
+            f"({contracts} shares requested; minimum={minimum_contracts})"
+        )
+
+    def _polymarket_minimum_contracts(self, opportunity: ArbOpportunity) -> Decimal:
+        leg = _polymarket_leg(opportunity)
+        if leg is None:
+            return Decimal("1")
+        return self._polymarket_minimum_contracts_for_leg(leg)
+
+    def _polymarket_minimum_contracts_for_leg(self, leg: ArbLeg) -> Decimal:
+        if hasattr(self.polymarket, "get_token_min_order_size"):
+            minimum = Decimal(self.polymarket.get_token_min_order_size(leg.market_id))
+            return max(
+                Decimal("1"),
+                minimum.to_integral_value(rounding=ROUND_CEILING),
+            )
+        # Legacy and test clients do not expose book constraints.
+        return max(
+            Decimal("1"),
+            (Decimal("100") / Decimal(leg.price_cents)).to_integral_value(
+                rounding=ROUND_CEILING
+            ),
         )
 
     def _polymarket_balance_block_reason(self, opportunity: ArbOpportunity) -> str | None:
@@ -436,15 +562,16 @@ class TradeExecutor:
         )
 
 
-def _largest_profitable_blended_fill(
+def _smallest_profitable_equal_fill(
     yes_leg: ArbLeg,
     no_leg: ArbLeg,
     yes_levels: list[BookLevel],
     no_levels: list[BookLevel],
     contracts_cap: Decimal,
-    max_leg_usd: Decimal,
+    leg_budgets_usd: dict[Exchange, Decimal],
     settings: Settings | None,
     fallback_buffers_cents: Decimal,
+    polymarket_min_order_size: Decimal = Decimal("1"),
 ) -> ProfitableFill:
     yes_ladder = _whole_contract_ladder(yes_levels)
     no_ladder = _whole_contract_ladder(no_levels)
@@ -458,8 +585,8 @@ def _largest_profitable_blended_fill(
     contracts = Decimal("0")
     yes_total_cents = Decimal("0")
     no_total_cents = Decimal("0")
-    accepted = _empty_profitable_fill()
-    max_leg_cents = max_leg_usd * Decimal("100")
+    yes_budget_cents = leg_budgets_usd.get(yes_leg.exchange, Decimal("0")) * Decimal("100")
+    no_budget_cents = leg_budgets_usd.get(no_leg.exchange, Decimal("0")) * Decimal("100")
 
     while contracts < contracts_cap and yes_index < len(yes_ladder) and no_index < len(no_ladder):
         yes_price = yes_ladder[yes_index][0]
@@ -467,7 +594,7 @@ def _largest_profitable_blended_fill(
         candidate_contracts = contracts + Decimal("1")
         candidate_yes_total = yes_total_cents + Decimal(yes_price)
         candidate_no_total = no_total_cents + Decimal(no_price)
-        if candidate_yes_total > max_leg_cents or candidate_no_total > max_leg_cents:
+        if candidate_yes_total > yes_budget_cents or candidate_no_total > no_budget_cents:
             break
 
         yes_avg = candidate_yes_total / candidate_contracts
@@ -494,20 +621,24 @@ def _largest_profitable_blended_fill(
         if net <= 0:
             break
 
+        if candidate_contracts >= max(
+            Decimal("1"),
+            Decimal(polymarket_min_order_size).to_integral_value(rounding=ROUND_CEILING),
+        ):
+            return ProfitableFill(
+                contracts=candidate_contracts,
+                yes_limit_cents=yes_price,
+                no_limit_cents=no_price,
+                yes_avg_cents=yes_avg,
+                no_avg_cents=no_avg,
+                gross_avg_cents=gross_avg,
+                buffers_cents=buffers,
+                net_profit_cents=net,
+            )
+
         contracts = candidate_contracts
         yes_total_cents = candidate_yes_total
         no_total_cents = candidate_no_total
-        accepted = ProfitableFill(
-            contracts=contracts,
-            yes_limit_cents=yes_price,
-            no_limit_cents=no_price,
-            yes_avg_cents=yes_avg,
-            no_avg_cents=no_avg,
-            gross_avg_cents=gross_avg,
-            buffers_cents=buffers,
-            net_profit_cents=net,
-        )
-
         yes_remaining -= Decimal("1")
         no_remaining -= Decimal("1")
         if yes_remaining <= 0:
@@ -519,7 +650,22 @@ def _largest_profitable_blended_fill(
             if no_index < len(no_ladder):
                 no_remaining = no_ladder[no_index][1]
 
-    return accepted
+    return _empty_profitable_fill()
+
+
+def _leg_budgets(
+    max_leg_usd: Decimal,
+    remaining_leg_usd: dict[Exchange, Decimal] | None,
+) -> dict[Exchange, Decimal]:
+    budgets: dict[Exchange, Decimal] = {}
+    for exchange in (Exchange.KALSHI, Exchange.POLYMARKET):
+        remaining = (
+            Decimal(max_leg_usd)
+            if remaining_leg_usd is None
+            else Decimal(remaining_leg_usd.get(exchange, Decimal("0")))
+        )
+        budgets[exchange] = max(Decimal("0"), min(Decimal(max_leg_usd), remaining))
+    return budgets
 
 
 def _cross_50_block_reason(first_leg: ArbLeg, second_leg: ArbLeg) -> str | None:
@@ -661,6 +807,27 @@ def _execution_order(opportunity: ArbOpportunity):
         return legs
     other_leg = opportunity.buy_no if polymarket_leg is opportunity.buy_yes else opportunity.buy_yes
     return polymarket_leg, other_leg
+
+
+def _opportunity_with_completed_leg(
+    opportunity: ArbOpportunity,
+    original_leg: ArbLeg,
+    completed_leg: ArbLeg,
+) -> ArbOpportunity:
+    if original_leg is opportunity.buy_yes:
+        buy_yes, buy_no = completed_leg, opportunity.buy_no
+    else:
+        buy_yes, buy_no = opportunity.buy_yes, completed_leg
+    yes_avg = buy_yes.avg_price_cents or Decimal(buy_yes.price_cents)
+    no_avg = buy_no.avg_price_cents or Decimal(buy_no.price_cents)
+    gross = yes_avg + no_avg
+    return replace(
+        opportunity,
+        buy_yes=buy_yes,
+        buy_no=buy_no,
+        gross_cost_cents=gross,
+        net_profit_cents=Decimal("100") - gross - opportunity.buffers_cents,
+    )
 
 
 def _polymarket_leg(opportunity: ArbOpportunity) -> ArbLeg | None:

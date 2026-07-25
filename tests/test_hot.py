@@ -29,7 +29,7 @@ from firstbot.hot import (
     _requires_live_halt,
     parse_datetime,
 )
-from firstbot.models import BookLevel, Exchange, Side
+from firstbot.models import ArbLeg, ArbOpportunity, BookLevel, Exchange, Side
 from firstbot.predictionhunt import PredictionHuntLeg, PredictionHuntOpportunity
 from firstbot.websockets import _remap_polymarket_token_side, parse_kalshi_message, parse_polymarket_message
 
@@ -273,7 +273,12 @@ class WebSocketParserTests(unittest.TestCase):
     def test_polymarket_snapshot_and_price_change_update_best_ask(self):
         books = {}
         snapshot = parse_polymarket_message(
-            {"event_type": "book", "asset_id": "poly", "asks": [{"price": "0.48", "size": "2"}]},
+            {
+                "event_type": "book",
+                "asset_id": "poly",
+                "min_order_size": "5",
+                "asks": [{"price": "0.48", "size": "2"}],
+            },
             books,
             now=NOW,
         )
@@ -288,7 +293,9 @@ class WebSocketParserTests(unittest.TestCase):
         )
 
         self.assertEqual(snapshot[0].best_ask.price_cents, 48)
+        self.assertEqual(snapshot[0].min_order_size, Decimal("5"))
         self.assertEqual(change[0].best_ask.price_cents, 47)
+        self.assertEqual(change[0].min_order_size, Decimal("5"))
 
     def test_polymarket_token_update_is_remapped_to_predictionhunt_side(self):
         update = parse_polymarket_message(
@@ -1603,6 +1610,7 @@ class HotTriggerTests(unittest.TestCase):
                 True,
                 True,
                 ask_levels=(BookLevel(40, Decimal("1")), BookLevel(42, Decimal("20"))),
+                min_order_size=Decimal("3"),
             ),
             (Exchange.KALSHI, "KALSHI-1", Side.NO): LiveLegBook(
                 Exchange.KALSHI,
@@ -2181,6 +2189,142 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
             records = (Path(tmp) / "hot_candidates.jsonl").read_text(encoding="utf-8")
             self.assertIn("stream_error", records)
             self.assertIn("stream failed visibly", records)
+
+    async def test_live_watch_repeats_smallest_equal_batches_and_persists_spend(self):
+        class FakeKalshiClient:
+            base_url = "https://example.test"
+
+        class FakePolymarketClient:
+            clob_url = "https://example.test"
+
+        executed = ArbOpportunity(
+            pair_name="Market 1",
+            buy_yes=ArbLeg(
+                Exchange.POLYMARKET,
+                "poly-1",
+                Side.YES,
+                40,
+                Decimal("3"),
+                avg_price_cents=Decimal("40"),
+            ),
+            buy_no=ArbLeg(
+                Exchange.KALSHI,
+                "KALSHI-1",
+                Side.NO,
+                55,
+                Decimal("3"),
+                avg_price_cents=Decimal("55"),
+            ),
+            gross_cost_cents=Decimal("95"),
+            buffers_cents=Decimal("0"),
+            net_profit_cents=Decimal("5"),
+            executable=True,
+            blockers=(),
+            event_type="sports",
+        )
+
+        class RepeatingEngine:
+            near_miss_cost_cents = 100
+
+            def __init__(self):
+                self.calls = 0
+                self.last_execution_opportunity = None
+
+            def evaluate(self, watch, now):
+                return executed
+
+            def execute_if_allowed(self, opportunity, execute, **kwargs):
+                self.calls += 1
+                self.last_execution_opportunity = executed
+                return True, "orders submitted"
+
+        async def two_updates(streams, expires_at, clock):
+            yield LiveLegBook(
+                Exchange.POLYMARKET,
+                "poly-1",
+                Side.YES,
+                BookLevel(40, Decimal("20")),
+                NOW,
+                True,
+                True,
+                min_order_size=Decimal("3"),
+            )
+            yield LiveLegBook(
+                Exchange.KALSHI,
+                "KALSHI-1",
+                Side.NO,
+                BookLevel(55, Decimal("20")),
+                NOW,
+                True,
+                True,
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = HotArbRunner(
+                None,
+                FakeKalshiClient(),
+                FakePolymarketClient(),
+                settings(live=True),
+                log_dir=tmp,
+                clock=lambda: NOW,
+            )
+            watch = HotWatchManager(600, 3, 20, True, clock=lambda: NOW).add_or_refresh(
+                ph_opportunity(yes_price="0.40", no_price="0.55"),
+                ph_outcome_keys(),
+            )[0]
+            assert watch is not None
+            engine = RepeatingEngine()
+
+            from firstbot import hot
+
+            original_merge_streams = hot.merge_streams
+            hot.merge_streams = two_updates
+            try:
+                await runner._watch_market(watch, engine, execute=True)
+            finally:
+                hot.merge_streams = original_merge_streams
+
+            self.assertEqual(engine.calls, 2)
+            self.assertEqual(watch.completed_batches, 2)
+            self.assertEqual(
+                watch.spent_cents_by_exchange[Exchange.POLYMARKET],
+                Decimal("240"),
+            )
+            self.assertEqual(
+                watch.spent_cents_by_exchange[Exchange.KALSHI],
+                Decimal("330"),
+            )
+            self.assertFalse(runner._uses_previously_triggered_contract(watch.opportunity))
+            spend_records = (
+                Path(tmp) / "hot_pair_spend.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(spend_records), 2)
+
+            restarted = HotArbRunner(
+                None,
+                FakeKalshiClient(),
+                FakePolymarketClient(),
+                settings(live=True),
+                log_dir=tmp,
+                clock=lambda: NOW,
+            )
+            restored_watch = HotWatchManager(
+                600,
+                3,
+                20,
+                True,
+                clock=lambda: NOW,
+            ).add_or_refresh(
+                ph_opportunity(yes_price="0.40", no_price="0.55"),
+                ph_outcome_keys(),
+            )[0]
+            assert restored_watch is not None
+            restarted._restore_pair_spend(restored_watch)
+            self.assertEqual(restored_watch.completed_batches, 2)
+            self.assertEqual(
+                restored_watch.spent_cents_by_exchange[Exchange.POLYMARKET],
+                Decimal("240"),
+            )
 
     def test_used_contract_guard_blocks_future_candidates_with_either_leg(self):
         runner = HotArbRunner(None, None, None, settings(), clock=lambda: NOW)

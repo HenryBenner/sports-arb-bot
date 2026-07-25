@@ -113,6 +113,28 @@ class FakeV2ClobClient(FakeClobClient):
 
 
 class ExchangeOrderTests(unittest.TestCase):
+    def test_polymarket_reads_and_caches_book_min_order_size(self):
+        http = FakeHttp(
+            get_responses=[
+                {
+                    "min_order_size": "5",
+                    "asks": [{"price": "0.42", "size": "20"}],
+                }
+            ]
+        )
+        client = PolymarketClient(
+            "https://gamma.example.test",
+            "https://clob.example.test",
+            http=http,
+        )
+
+        asks = client.get_token_ask_levels("token")
+        minimum = client.get_token_min_order_size("token")
+
+        self.assertEqual(asks[0].price_cents, 42)
+        self.assertEqual(minimum, Decimal("5"))
+        self.assertEqual(len(http.calls), 1)
+
     def test_kalshi_orderbook_fp_converts_opposing_bids_to_buy_asks(self):
         http = FakeHttp(
             get_responses=[

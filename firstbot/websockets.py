@@ -22,6 +22,7 @@ class AggregatedBook:
         self.bid_levels: dict[Side, dict[Decimal, Decimal]] = {Side.YES: {}, Side.NO: {}}
         self.snapshot_ready = False
         self.connected = True
+        self.min_order_size: Decimal | None = None
 
     def replace(self, side: Side, levels: list[BookLevel]) -> None:
         self.levels[side] = {
@@ -71,6 +72,7 @@ class AggregatedBook:
             connected=self.connected,
             snapshot_ready=self.snapshot_ready,
             ask_levels=tuple(levels),
+            min_order_size=self.min_order_size,
         )
 
     def best_ask(self, side: Side, now: datetime) -> LiveLegBook:
@@ -90,6 +92,7 @@ class AggregatedBook:
             connected=self.connected,
             snapshot_ready=self.snapshot_ready,
             ask_levels=ask_levels,
+            min_order_size=self.min_order_size,
         )
 
 
@@ -254,6 +257,9 @@ def parse_polymarket_message(
             continue
         book = books.setdefault(market_id, AggregatedBook(Exchange.POLYMARKET, market_id))
         if event_type in {"book", "orderbook", "snapshot"}:
+            min_order_size = _decimal_or_none(item.get("min_order_size"))
+            if min_order_size is not None and min_order_size > 0:
+                book.min_order_size = min_order_size
             asks = _poly_levels(item.get("asks", []))
             book.replace(Side.YES, asks)
             updates.append(book.best_ask(Side.YES, now))
@@ -294,6 +300,7 @@ def _remap_polymarket_token_side(
         connected=update.connected,
         snapshot_ready=update.snapshot_ready,
         ask_levels=update.ask_levels,
+        min_order_size=update.min_order_size,
     )
 
 

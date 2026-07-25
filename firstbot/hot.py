@@ -15,7 +15,7 @@ from .config import Settings
 from .executor import (
     TradeExecutor,
     _cross_50_block_reason,
-    _largest_profitable_blended_fill,
+    _smallest_profitable_equal_fill,
 )
 from .fees import total_cost_adjustment_cents
 from .exchanges import KalshiClient, PolymarketClient
@@ -68,6 +68,7 @@ class LiveLegBook:
     connected: bool = True
     snapshot_ready: bool = False
     ask_levels: tuple[BookLevel, ...] = ()
+    min_order_size: Decimal | None = None
 
     def is_fresh(self, now: datetime, stale_ms: int) -> bool:
         if not self.connected or not self.snapshot_ready or self.updated_at is None:
@@ -89,6 +90,13 @@ class HotWatch:
     triggered: bool = False
     books: dict[tuple[Exchange, str, Side], LiveLegBook] | None = None
     near_misses_logged: set[int] = field(default_factory=set)
+    spent_cents_by_exchange: dict[Exchange, Decimal] = field(
+        default_factory=lambda: {
+            Exchange.KALSHI: Decimal("0"),
+            Exchange.POLYMARKET: Decimal("0"),
+        }
+    )
+    completed_batches: int = 0
 
     def refresh(
         self,
@@ -313,27 +321,73 @@ class HotTriggerEngine:
         execute: bool,
         watch: HotWatch | None = None,
         now: datetime | None = None,
+        remaining_leg_usd: dict[Exchange, Decimal] | None = None,
     ) -> tuple[bool, str]:
         if not execute:
             return False, "paper trigger"
         if not self.executor:
             return False, "executor unavailable"
         if watch is not None and now is not None:
-            fast_opportunity, fast_reason = self._fast_path_opportunity(watch, opportunity, now)
+            fast_opportunity, fast_reason = self._fast_path_opportunity(
+                watch,
+                opportunity,
+                now,
+                remaining_leg_usd=remaining_leg_usd,
+            )
             if fast_opportunity is not None:
                 self.last_execution_opportunity = fast_opportunity
-                return self.executor.execute_fast(fast_opportunity, workflow="run-hot-arb")
+                if remaining_leg_usd is None:
+                    result = self.executor.execute_fast(
+                        fast_opportunity,
+                        workflow="run-hot-arb",
+                    )
+                else:
+                    result = self.executor.execute_fast(
+                        fast_opportunity,
+                        workflow="run-hot-arb",
+                        remaining_leg_usd=remaining_leg_usd,
+                    )
+                self.last_execution_opportunity = (
+                    getattr(self.executor, "last_submitted_opportunity", None)
+                    or fast_opportunity
+                )
+                return result
             if fast_reason:
                 self.last_execution_opportunity = opportunity
-                return self.executor.execute(opportunity, workflow="run-hot-arb")
+                if remaining_leg_usd is None:
+                    result = self.executor.execute(opportunity, workflow="run-hot-arb")
+                else:
+                    result = self.executor.execute(
+                        opportunity,
+                        workflow="run-hot-arb",
+                        remaining_leg_usd=remaining_leg_usd,
+                    )
+                self.last_execution_opportunity = (
+                    getattr(self.executor, "last_submitted_opportunity", None)
+                    or opportunity
+                )
+                return result
         self.last_execution_opportunity = opportunity
-        return self.executor.execute(opportunity, workflow="run-hot-arb")
+        if remaining_leg_usd is None:
+            result = self.executor.execute(opportunity, workflow="run-hot-arb")
+        else:
+            result = self.executor.execute(
+                opportunity,
+                workflow="run-hot-arb",
+                remaining_leg_usd=remaining_leg_usd,
+            )
+        self.last_execution_opportunity = (
+            getattr(self.executor, "last_submitted_opportunity", None)
+            or opportunity
+        )
+        return result
 
     def _fast_path_opportunity(
         self,
         watch: HotWatch,
         opportunity: ArbOpportunity,
         now: datetime,
+        remaining_leg_usd: dict[Exchange, Decimal] | None = None,
     ) -> tuple[ArbOpportunity | None, str | None]:
         if not self.settings.hot_fast_path:
             return None, "fast path disabled"
@@ -352,6 +406,19 @@ class HotTriggerEngine:
         assert no_book.best_ask is not None
         yes_levels = _book_ask_levels(yes_book)
         no_levels = _book_ask_levels(no_book)
+        polymarket_book = (
+            yes_book
+            if opportunity.buy_yes.exchange is Exchange.POLYMARKET
+            else no_book
+            if opportunity.buy_no.exchange is Exchange.POLYMARKET
+            else None
+        )
+        if (
+            polymarket_book is None
+            or polymarket_book.min_order_size is None
+            or polymarket_book.min_order_size <= 0
+        ):
+            return None, "fast path missing Polymarket min_order_size"
         gross_cost = yes_levels[0].price_cents + no_levels[0].price_cents
         if gross_cost <= 0:
             return None, "fast path invalid gross cost"
@@ -365,18 +432,30 @@ class HotTriggerEngine:
             Decimal(self.settings.max_leg_usd),
             Decimal(self.settings.hot_fast_max_total_usd) / Decimal("2"),
         )
-        fill = _largest_profitable_blended_fill(
+        leg_budgets = {
+            exchange: min(
+                max_leg_usd,
+                (
+                    Decimal(remaining_leg_usd.get(exchange, Decimal("0")))
+                    if remaining_leg_usd is not None
+                    else max_leg_usd
+                ),
+            )
+            for exchange in (Exchange.KALSHI, Exchange.POLYMARKET)
+        }
+        fill = _smallest_profitable_equal_fill(
             opportunity.buy_yes,
             opportunity.buy_no,
             yes_levels,
             no_levels,
             contracts_cap,
-            max_leg_usd,
+            leg_budgets,
             self.settings,
             opportunity.buffers_cents,
+            polymarket_min_order_size=polymarket_book.min_order_size,
         )
         if fill.contracts < Decimal("1"):
-            return None, "fast path no profitable blended fill"
+            return None, "fast path no exchange-valid profitable equal batch"
         if fill.net_profit_cents < self.settings.hot_fast_min_net_edge_cents:
             return None, "fast path recalculated edge below threshold"
         buy_yes = replace(
@@ -446,6 +525,7 @@ class HotArbRunner:
         self._log_filename_overrides: dict[str, str] = {}
         self._kalshi_market_cache: dict[str, dict] = {}
         self.used_contract_ids: set[str] = self._load_used_contract_ids()
+        self.pair_spend_state = self._load_pair_spend_state()
         self._live_halt_reason: str | None = None
         self._printed_expiring_candidate_keys: set[str] = set()
         self._printed_expiring_blocked_keys: set[str] = set()
@@ -589,6 +669,7 @@ class HotArbRunner:
                 if watch is None:
                     self._log_candidate(opportunity, "skipped", status)
                     continue
+                self._restore_pair_spend(watch)
                 self._log_candidate(opportunity, status, "hot watch active")
                 if watch.key not in active_tasks:
                     active_tasks[watch.key] = asyncio.create_task(
@@ -743,19 +824,62 @@ class HotArbRunner:
                         self._log_trigger(watch, evaluation, "paper" if not execute else "live", "blocked", "contract already used by prior trigger")
                         return
                     mode = "live" if execute else "paper"
-                    submitted, message = engine.execute_if_allowed(evaluation, execute, watch=watch, now=now)
-                    self._log_trigger(watch, evaluation, mode, "executed" if submitted else "blocked", message)
+                    remaining_leg_usd = (
+                        self._remaining_leg_usd(watch)
+                        if execute
+                        else None
+                    )
+                    submitted, message = engine.execute_if_allowed(
+                        evaluation,
+                        execute,
+                        watch=watch,
+                        now=now,
+                        remaining_leg_usd=remaining_leg_usd,
+                    )
+                    executed_opportunity = (
+                        engine.last_execution_opportunity
+                        if submitted and engine.last_execution_opportunity is not None
+                        else evaluation
+                    )
+                    if execute and submitted:
+                        self._record_completed_pair_batch(watch, executed_opportunity)
+                    self._log_trigger(
+                        watch,
+                        executed_opportunity,
+                        mode,
+                        "executed" if submitted else "blocked",
+                        message,
+                    )
+                    cumulative = (
+                        " "
+                        f"batch_size={executed_opportunity.buy_yes.size} "
+                        f"cumulative_kalshi=${_decimal_str(watch.spent_cents_by_exchange[Exchange.KALSHI] / Decimal('100'))} "
+                        f"cumulative_polymarket=${_decimal_str(watch.spent_cents_by_exchange[Exchange.POLYMARKET] / Decimal('100'))}"
+                        if execute and submitted
+                        else ""
+                    )
                     print(
-                        f"hot trigger: {evaluation.pair_name} "
-                        f"gross={evaluation.gross_cost_cents}c net={evaluation.net_profit_cents}c "
+                        f"hot trigger: {executed_opportunity.pair_name} "
+                        f"gross={executed_opportunity.gross_cost_cents}c net={executed_opportunity.net_profit_cents}c "
                         f"action={'executed' if submitted else 'blocked'}"
                         f"{'' if submitted else ' reason=' + _short_reason(message)}"
+                        f"{cumulative}"
                     )
-                    if execute and (submitted or _may_have_live_exposure(message)):
+                    if execute and _may_have_live_exposure(message) and not submitted:
                         self._mark_contracts_used(watch.opportunity)
                     if execute and not submitted and _requires_live_halt(message):
                         self._live_halt_reason = message
                     watch.triggered = True
+                    if execute and submitted:
+                        if self._remaining_budget_cannot_fit_exchange_minimum(watch):
+                            self._mark_contracts_used(watch.opportunity)
+                            return
+                        continue
+                    if execute and _incremental_budget_exhausted(message):
+                        self._mark_contracts_used(watch.opportunity)
+                        return
+                    if execute and not _requires_live_halt(message):
+                        continue
                     if not execute:
                         self._mark_contracts_used(watch.opportunity)
                     return
@@ -932,6 +1056,108 @@ class HotArbRunner:
                 if text:
                     used.add(text)
         return used
+
+    def _remaining_leg_usd(self, watch: HotWatch) -> dict[Exchange, Decimal]:
+        max_leg_cents = Decimal(self.settings.max_leg_usd) * Decimal("100")
+        return {
+            exchange: max(
+                Decimal("0"),
+                (max_leg_cents - watch.spent_cents_by_exchange.get(exchange, Decimal("0")))
+                / Decimal("100"),
+            )
+            for exchange in (Exchange.KALSHI, Exchange.POLYMARKET)
+        }
+
+    def _remaining_budget_cannot_fit_exchange_minimum(self, watch: HotWatch) -> bool:
+        remaining = self._remaining_leg_usd(watch)
+        return (
+            remaining[Exchange.POLYMARKET] <= Decimal("0")
+            or remaining[Exchange.KALSHI] < Decimal("0.01")
+        )
+
+    def _record_completed_pair_batch(
+        self,
+        watch: HotWatch,
+        opportunity: ArbOpportunity,
+    ) -> None:
+        batch_spend_cents: dict[Exchange, Decimal] = {
+            Exchange.KALSHI: Decimal("0"),
+            Exchange.POLYMARKET: Decimal("0"),
+        }
+        for leg in (opportunity.buy_yes, opportunity.buy_no):
+            price = (
+                leg.avg_price_cents
+                if leg.avg_price_cents is not None
+                else Decimal(leg.price_cents)
+            )
+            spend = price * Decimal(leg.size)
+            batch_spend_cents[leg.exchange] += spend
+            watch.spent_cents_by_exchange[leg.exchange] = (
+                watch.spent_cents_by_exchange.get(leg.exchange, Decimal("0")) + spend
+            )
+        watch.completed_batches += 1
+        state = {
+            "completed_batches": watch.completed_batches,
+            "spent_cents": {
+                exchange.value: str(watch.spent_cents_by_exchange[exchange])
+                for exchange in (Exchange.KALSHI, Exchange.POLYMARKET)
+            },
+        }
+        self.pair_spend_state[watch.key] = state
+        self._write_jsonl(
+            "hot_pair_spend.jsonl",
+            {
+                "timestamp": self.clock().isoformat(),
+                "pair_key": watch.key,
+                "group_id": watch.opportunity.group_id,
+                "group_title": watch.opportunity.group_title,
+                "batch_size": str(opportunity.buy_yes.size),
+                "batch_spend_cents": {
+                    exchange.value: str(batch_spend_cents[exchange])
+                    for exchange in (Exchange.KALSHI, Exchange.POLYMARKET)
+                },
+                **state,
+            },
+        )
+
+    def _restore_pair_spend(self, watch: HotWatch) -> None:
+        state = self.pair_spend_state.get(watch.key)
+        if not state:
+            return
+        spent = state.get("spent_cents") or {}
+        for exchange in (Exchange.KALSHI, Exchange.POLYMARKET):
+            restored = Decimal(str(spent.get(exchange.value, "0")))
+            watch.spent_cents_by_exchange[exchange] = max(
+                watch.spent_cents_by_exchange.get(exchange, Decimal("0")),
+                restored,
+            )
+        watch.completed_batches = max(
+            watch.completed_batches,
+            int(state.get("completed_batches") or 0),
+        )
+
+    def _load_pair_spend_state(self) -> dict[str, dict]:
+        path = self._log_path("hot_pair_spend.jsonl")
+        if not path.is_file():
+            return {}
+        states: dict[str, dict] = {}
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return states
+        for line in lines:
+            try:
+                record = json.loads(line)
+                pair_key = str(record.get("pair_key") or "").strip()
+                spent = record.get("spent_cents")
+                if pair_key and isinstance(spent, dict):
+                    states[pair_key] = {
+                        "completed_batches": int(record.get("completed_batches") or 0),
+                        "spent_cents": spent,
+                    }
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
+        return states
 
     def _log_candidate(self, opportunity: PredictionHuntOpportunity, action: str, message: str) -> None:
         self._write_jsonl(
@@ -1475,6 +1701,7 @@ def _book_with_timestamp(book: LiveLegBook, updated_at: datetime) -> LiveLegBook
         connected=book.connected,
         snapshot_ready=book.snapshot_ready,
         ask_levels=book.ask_levels,
+        min_order_size=book.min_order_size,
     )
 
 
@@ -1505,6 +1732,9 @@ def _book_record(book: LiveLegBook) -> dict:
         "updated_at": None if book.updated_at is None else book.updated_at.isoformat(),
         "connected": book.connected,
         "snapshot_ready": book.snapshot_ready,
+        "min_order_size": (
+            None if book.min_order_size is None else str(book.min_order_size)
+        ),
     }
 
 
@@ -1550,6 +1780,10 @@ def _may_have_live_exposure(message: str) -> bool:
         or "manual_review_required" in lowered
         or "polymarket_order_state_uncertain" in lowered
     )
+
+
+def _incremental_budget_exhausted(message: str) -> bool:
+    return "incremental_budget_exhausted" in str(message or "").lower()
 
 
 def _is_polymarket_geoblock_error(message: str) -> bool:

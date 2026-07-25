@@ -43,6 +43,7 @@ class PolymarketClient:
         self.signature_type = signature_type
         self.http = http or HttpClient()
         self._trading_client: Any | None = None
+        self._token_min_order_sizes: dict[str, Decimal] = {}
 
     def get_events(self, **params: Any) -> Any:
         return self.http.get_json(f"{self.gamma_url}/events", params=params)
@@ -75,11 +76,25 @@ class PolymarketClient:
 
     def get_token_ask_levels(self, token_id: str) -> list[BookLevel]:
         book = self._token_book(token_id)
+        self._remember_token_min_order_size(token_id, book)
         return sorted(self._poly_asks(book.get("asks", [])), key=lambda level: level.price_cents)
 
     def get_token_bid_levels(self, token_id: str) -> list[BookLevel]:
         book = self._token_book(token_id)
+        self._remember_token_min_order_size(token_id, book)
         return sorted(self._poly_bids(book.get("bids", [])), key=lambda level: level.price_cents, reverse=True)
+
+    def get_token_min_order_size(self, token_id: str) -> Decimal:
+        cached = self._token_min_order_sizes.get(token_id)
+        if cached is not None:
+            return cached
+        book = self._token_book(token_id)
+        minimum = self._remember_token_min_order_size(token_id, book)
+        if minimum is None:
+            raise RuntimeError(
+                f"Polymarket book did not include min_order_size for {token_id}"
+            )
+        return minimum
 
     def available_cash_usd(self) -> Decimal:
         client, types = self._client_and_types()
@@ -555,6 +570,27 @@ class PolymarketClient:
             return self.http.get_json(f"{self.clob_url}/book", params={"token_id": token_id})
         except RuntimeError:
             return self.http.get_json(f"{self.clob_url}/orderbook", params={"token_id": token_id})
+
+    def _remember_token_min_order_size(
+        self,
+        token_id: str,
+        book: dict[str, Any],
+    ) -> Decimal | None:
+        raw = book.get("min_order_size", book.get("minOrderSize"))
+        if raw is None or str(raw).strip() == "":
+            return None
+        try:
+            minimum = Decimal(str(raw))
+        except Exception as exc:
+            raise RuntimeError(
+                f"Polymarket book did not include a valid min_order_size for {token_id}: {raw}"
+            ) from exc
+        if minimum <= 0:
+            raise RuntimeError(
+                f"Polymarket book returned non-positive min_order_size for {token_id}: {raw}"
+            )
+        self._token_min_order_sizes[token_id] = minimum
+        return minimum
 
     def _gamma_market(self, market_id: str) -> dict[str, Any]:
         condition_queries = (
