@@ -16,7 +16,6 @@ from .executor import (
     TradeExecutor,
     _cross_50_block_reason,
     _largest_profitable_blended_fill,
-    _source_price_alignment_block_reason,
 )
 from .fees import total_cost_adjustment_cents
 from .exchanges import KalshiClient, PolymarketClient
@@ -289,17 +288,6 @@ class HotTriggerEngine:
             cross_50_blocker = _cross_50_block_reason(first_leg, second_leg)
             if cross_50_blocker:
                 blockers.append(cross_50_blocker)
-        if (
-            self.settings.live_trading
-            and self.settings.hot_require_source_price_alignment
-        ):
-            for leg in (first_leg, second_leg):
-                source_blocker = _source_price_alignment_block_reason(
-                    leg,
-                    self.settings.hot_source_price_max_deviation_cents,
-                )
-                if source_blocker:
-                    blockers.append(source_blocker)
         gross_cost = first_leg.price_cents + second_leg.price_cents
         buffers = total_cost_adjustment_cents((first_leg, second_leg), self.settings)
         net_profit = Decimal(100 - gross_cost) - buffers
@@ -407,14 +395,6 @@ class HotTriggerEngine:
             cross_50_blocker = _cross_50_block_reason(buy_yes, buy_no)
             if cross_50_blocker:
                 return None, f"fast path {cross_50_blocker}"
-        if self.settings.hot_require_source_price_alignment:
-            for leg in (buy_yes, buy_no):
-                source_blocker = _source_price_alignment_block_reason(
-                    leg,
-                    self.settings.hot_source_price_max_deviation_cents,
-                )
-                if source_blocker:
-                    return None, f"fast path {source_blocker}"
         return (
             replace(
                 opportunity,

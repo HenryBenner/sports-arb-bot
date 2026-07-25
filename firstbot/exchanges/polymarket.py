@@ -13,9 +13,10 @@ from ..models import BookLevel, Exchange, OrderBook, Side
 from ..ssl_compat import windows_truststore_context
 
 
-POLYMARKET_CONFIRMATION_TIMEOUT_SECONDS = 3.5
-POLYMARKET_CONFIRMATION_POLL_SECONDS = 0.25
+POLYMARKET_CONFIRMATION_TIMEOUT_SECONDS = 12.0
+POLYMARKET_CONFIRMATION_POLL_SECONDS = 0.2
 POLYMARKET_CONFIRMED_STATUSES = {"filled", "matched"}
+POLYMARKET_TRADE_CONFIRMED_STATUSES = {"confirmed", "filled", "matched", "mined"}
 POLYMARKET_TERMINAL_EMPTY_STATUSES = {"canceled", "cancelled", "expired", "failed", "rejected"}
 
 
@@ -305,7 +306,7 @@ class PolymarketClient:
     def _sdk_types() -> dict[str, Any]:
         try:
             from py_clob_client.client import ClobClient
-            from py_clob_client.clob_types import ApiCreds, AssetType, BalanceAllowanceParams, OrderArgs, OrderType
+            from py_clob_client.clob_types import ApiCreds, AssetType, BalanceAllowanceParams, OrderArgs, OrderType, TradeParams
             from py_clob_client.constants import BUY, POLYGON
             from py_clob_client.order_builder.constants import SELL
         except ImportError as exc:
@@ -317,6 +318,7 @@ class PolymarketClient:
             "BalanceAllowanceParams": BalanceAllowanceParams,
             "OrderArgs": OrderArgs,
             "OrderType": OrderType,
+            "TradeParams": TradeParams,
             "BUY": BUY,
             "SELL": SELL,
             "POLYGON": POLYGON,
@@ -342,6 +344,7 @@ class PolymarketClient:
                 PartialCreateOrderOptions,
                 Side as ClobSide,
                 SignatureTypeV2,
+                TradeParams,
             )
         except ImportError as exc:
             raise RuntimeError(
@@ -358,6 +361,7 @@ class PolymarketClient:
             "PartialCreateOrderOptions": PartialCreateOrderOptions,
             "Side": ClobSide,
             "SignatureTypeV2": SignatureTypeV2,
+            "TradeParams": TradeParams,
             "POLYGON": 137,
         }
 
@@ -463,22 +467,31 @@ class PolymarketClient:
         deadline = time.monotonic() + timeout
         last_result = initial_result
         while time.monotonic() <= deadline:
-            try:
-                current = self.get_order(order_id)
-            except Exception as exc:
-                raise RuntimeError(
-                    "polymarket_order_state_uncertain: could not confirm delayed "
-                    f"Polymarket order {order_id}: {exc}"
-                ) from exc
-            if _polymarket_fill_confirmed(current, expected_size):
-                return current
-            status = _polymarket_order_status(current)
-            if status in POLYMARKET_TERMINAL_EMPTY_STATUSES:
-                raise RuntimeError(
-                    f"Polymarket delayed FOK order {order_id} was not filled "
-                    f"status={status}: {current}"
-                )
-            last_result = current
+            current = self._try_get_order(order_id)
+            if current is not None:
+                if _polymarket_fill_confirmed(current, expected_size):
+                    return current
+                status = _polymarket_order_status(current)
+                if status in POLYMARKET_TERMINAL_EMPTY_STATUSES:
+                    raise RuntimeError(
+                        f"Polymarket delayed FOK order {order_id} was not filled "
+                        f"status={status}: {current}"
+                    )
+                last_result = current
+
+            trades = self._try_get_order_trades(order_id)
+            if trades:
+                trade_fill = _polymarket_trades_fill_confirmed(trades, order_id, expected_size)
+                if trade_fill is not None:
+                    return {
+                        "success": True,
+                        "status": "matched",
+                        "orderID": order_id,
+                        "size_matched": str(trade_fill),
+                        "trades": trades,
+                        "confirmation_source": "trades",
+                    }
+                last_result = {"orderID": order_id, "status": "delayed", "trades": trades}
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
@@ -487,6 +500,42 @@ class PolymarketClient:
             "polymarket_order_state_uncertain: delayed Polymarket FOK order "
             f"{order_id} was not confirmed filled within {timeout:g}s: {last_result}"
         )
+
+    def _try_get_order(self, order_id: str) -> dict[str, Any] | None:
+        try:
+            current = self.get_order(order_id)
+        except Exception:
+            return None
+        return current if isinstance(current, dict) else None
+
+    def _try_get_order_trades(self, order_id: str) -> list[dict[str, Any]]:
+        client, types = self._client_and_types()
+        if not hasattr(client, "get_trades") or "TradeParams" not in types:
+            return []
+        params_options = []
+        try:
+            params_options.append(types["TradeParams"](id=order_id))
+        except Exception:
+            pass
+        try:
+            params_options.append(types["TradeParams"]())
+        except Exception:
+            params_options.append(None)
+        for params in params_options:
+            try:
+                raw = client.get_trades(params=params, only_first_page=True)
+            except TypeError:
+                try:
+                    raw = client.get_trades(params)
+                except Exception:
+                    continue
+            except Exception:
+                continue
+            trades = _json_list(raw.get("data") if isinstance(raw, dict) else raw)
+            matches = [trade for trade in trades if _polymarket_trade_matches_order(trade, order_id)]
+            if matches:
+                return matches
+        return []
 
     def cancel_order(self, order_id: str) -> dict[str, Any]:
         order_id = str(order_id or "").strip()
@@ -748,6 +797,63 @@ def _polymarket_filled_size(raw: Any) -> Decimal | None:
         "matched_size",
         "matchedSize",
         "filled",
+    ):
+        value = _decimal_field(raw, key)
+        if value is not None:
+            return value
+    return None
+
+
+def _polymarket_trades_fill_confirmed(
+    trades: list[dict[str, Any]],
+    order_id: str,
+    expected_size: Decimal,
+) -> Decimal | None:
+    filled = Decimal("0")
+    for trade in trades:
+        if not _polymarket_trade_matches_order(trade, order_id):
+            continue
+        status = _polymarket_order_status(trade)
+        if status and status not in POLYMARKET_TRADE_CONFIRMED_STATUSES:
+            continue
+        size = _polymarket_filled_size(trade)
+        if size is None:
+            size = _polymarket_trade_size(trade)
+        if size is None:
+            continue
+        filled += size
+    return filled if filled >= Decimal(expected_size) else None
+
+
+def _polymarket_trade_matches_order(raw: Any, order_id: str) -> bool:
+    if not isinstance(raw, dict):
+        return False
+    expected = str(order_id or "").strip().lower()
+    if not expected:
+        return False
+    for key, value in raw.items():
+        normalized_key = str(key).replace("_", "").replace("-", "").lower()
+        if "order" not in normalized_key or "id" not in normalized_key:
+            continue
+        if isinstance(value, (list, tuple, set)):
+            values = value
+        else:
+            values = (value,)
+        for item in values:
+            if str(item or "").strip().lower() == expected:
+                return True
+    return False
+
+
+def _polymarket_trade_size(raw: dict[str, Any]) -> Decimal | None:
+    for key in (
+        "size",
+        "amount",
+        "match_size",
+        "matchSize",
+        "shares",
+        "outcomeTokenAmount",
+        "outcome_token_amount",
     ):
         value = _decimal_field(raw, key)
         if value is not None:

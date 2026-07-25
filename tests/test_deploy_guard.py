@@ -86,7 +86,7 @@ class DelayedPolymarket(ReadyPolymarket):
         self.orders.append(kwargs)
         raise RuntimeError(
             "polymarket_order_state_uncertain: delayed Polymarket FOK order "
-            "0xpending was not confirmed filled within 3.5s"
+            "0xpending was not confirmed filled within 12s"
         )
 
 
@@ -291,7 +291,7 @@ class DeployGuardTests(unittest.TestCase):
         self.assertTrue(submitted)
         self.assertIn("orders submitted", message)
 
-    def test_executor_source_price_guard_blocks_complementary_price_mapping(self):
+    def test_executor_ignores_stale_source_prices_for_exact_legs(self):
         class TrackingKalshi(ReadyKalshi):
             def __init__(self):
                 super().__init__()
@@ -311,7 +311,7 @@ class DeployGuardTests(unittest.TestCase):
                 return super().buy(**kwargs)
 
         opportunity = ArbOpportunity(
-            pair_name="Inverted Mapping",
+            pair_name="Exact Legs With Stale Source Prices",
             buy_yes=ArbLeg(
                 Exchange.POLYMARKET,
                 "P",
@@ -348,10 +348,10 @@ class DeployGuardTests(unittest.TestCase):
 
         submitted, message = executor.execute_fast(opportunity, workflow="run-hot-arb")
 
-        self.assertFalse(submitted)
-        self.assertIn("closer to the complementary PredictionHunt price", message)
-        self.assertEqual(kalshi.calls, [])
-        self.assertEqual(polymarket.calls, [])
+        self.assertTrue(submitted)
+        self.assertIn("orders submitted", message)
+        self.assertEqual(len(kalshi.calls), 1)
+        self.assertEqual(len(polymarket.calls), 1)
 
     def test_executor_source_price_guard_allows_matching_live_quotes(self):
         opportunity = ArbOpportunity(

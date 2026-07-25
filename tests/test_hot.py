@@ -329,7 +329,7 @@ class HotTriggerTests(unittest.TestCase):
             _requires_live_halt(
                 "first leg failed before paired order submission: "
                 "polymarket_order_state_uncertain: delayed Polymarket FOK order "
-                "0xpending was not confirmed filled within 3.5s"
+                "0xpending was not confirmed filled within 12s"
             )
         )
         self.assertTrue(

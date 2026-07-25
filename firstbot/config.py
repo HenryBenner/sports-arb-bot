@@ -83,7 +83,7 @@ class Settings:
     hot_fast_max_book_age_ms: int = 1000
     hot_fast_min_net_edge_cents: Decimal = Decimal("0")
     hot_require_cross_50: bool = True
-    hot_require_source_price_alignment: bool = True
+    hot_require_source_price_alignment: bool = False
     hot_source_price_max_deviation_cents: Decimal = Decimal("10")
     hot_allowed_event_types: tuple[str, ...] = ("sports", "esports")
     hot_geoblock_check: bool = True
@@ -197,7 +197,7 @@ class Settings:
             hot_require_cross_50=_bool_env("BOT_HOT_REQUIRE_CROSS_50", True),
             hot_require_source_price_alignment=_bool_env(
                 "BOT_HOT_REQUIRE_SOURCE_PRICE_ALIGNMENT",
-                True,
+                False,
             ),
             hot_source_price_max_deviation_cents=_decimal_env(
                 "BOT_HOT_SOURCE_PRICE_MAX_DEVIATION_CENTS",

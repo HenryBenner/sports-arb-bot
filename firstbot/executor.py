@@ -92,29 +92,6 @@ class TradeExecutor:
                     False,
                     f"live opposite-price guard failed before order submission: {cross_50_blocker}",
                 )
-        if self.settings is not None and getattr(
-            self.settings,
-            "hot_require_source_price_alignment",
-            True,
-        ):
-            max_deviation = Decimal(
-                getattr(
-                    self.settings,
-                    "hot_source_price_max_deviation_cents",
-                    Decimal("10"),
-                )
-            )
-            for leg in (opportunity.buy_yes, opportunity.buy_no):
-                source_blocker = _source_price_alignment_block_reason(
-                    leg,
-                    max_deviation,
-                )
-                if source_blocker:
-                    return (
-                        False,
-                        "live PredictionHunt price guard failed before order "
-                        f"submission: {source_blocker}",
-                    )
         first_leg, second_leg = _execution_order(opportunity)
         first_result = None
         polymarket_confirmation_timeout = _polymarket_confirmation_timeout_seconds(
@@ -527,5 +504,5 @@ def _execution_order(opportunity: ArbOpportunity):
 def _polymarket_confirmation_timeout_seconds(event_type: str | None) -> float:
     normalized = " ".join(str(event_type or "").lower().replace("_", " ").split())
     if normalized in {"crypto", "cryptocurrency", "finance", "financial", "financials"}:
-        return 0.75
-    return 3.5
+        return 2.0
+    return 12.0

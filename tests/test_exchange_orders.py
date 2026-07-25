@@ -86,6 +86,11 @@ class FakePartialCreateOrderOptions:
         self.kwargs = kwargs
 
 
+class FakeTradeParams:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+
 class FakeV2ClobClient(FakeClobClient):
     def create_and_post_order(self, order_args=None, options=None, order_type=None):
         self.created_order = order_args
@@ -292,6 +297,55 @@ class ExchangeOrderTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "matched")
         self.assertEqual(result["size_matched"], "2")
+
+    def test_polymarket_deposit_wallet_confirms_delayed_fill_from_trades_when_order_is_hidden(self):
+        class HiddenOrderFilledByTradesV2ClobClient(FakeV2ClobClient):
+            def create_and_post_order(self, order_args=None, options=None, order_type=None):
+                return {"success": True, "status": "delayed", "orderID": "0xpending"}
+
+            def get_order(self, order_id):
+                return None
+
+            def get_trades(self, params=None, only_first_page=False):
+                return [
+                    {
+                        "status": "CONFIRMED",
+                        "taker_order_id": "0xpending",
+                        "size": "2",
+                    }
+                ]
+
+        FakeClobClient.instances = []
+        client = PolymarketClient(
+            gamma_url="https://example.test",
+            clob_url="https://clob.example.test",
+            private_key="pk",
+            api_key="api",
+            api_secret="secret",
+            api_passphrase="pass",
+            funder_address="0xdepositwallet",
+            signature_type=3,
+        )
+        fake_types = {
+            "ClobClient": HiddenOrderFilledByTradesV2ClobClient,
+            "ApiCreds": FakeApiCreds,
+            "AssetType": FakeAssetType,
+            "BalanceAllowanceParams": FakeBalanceAllowanceParams,
+            "OrderArgs": FakeOrderArgs,
+            "OrderType": FakeOrderType,
+            "PartialCreateOrderOptions": FakePartialCreateOrderOptions,
+            "Side": FakeV2Side,
+            "SignatureTypeV2": FakeSignatureTypeV2,
+            "TradeParams": FakeTradeParams,
+            "POLYGON": 137,
+        }
+
+        with patch.object(PolymarketClient, "_sdk_types_v2", return_value=fake_types):
+            result = client.buy("token", price_cents=45, size=Decimal("2"))
+
+        self.assertEqual(result["status"], "matched")
+        self.assertEqual(result["size_matched"], "2")
+        self.assertEqual(result["confirmation_source"], "trades")
 
     def test_polymarket_deposit_wallet_rejects_delayed_without_order_id(self):
         class DelayedNoIdV2ClobClient(FakeV2ClobClient):
