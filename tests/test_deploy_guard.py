@@ -180,6 +180,107 @@ class DeployGuardTests(unittest.TestCase):
         self.assertIn("manual_review_required", message)
         self.assertEqual(len(polymarket.orders), 1)
 
+    def test_executor_retries_exact_missing_kalshi_leg_after_polymarket_fill(self):
+        class RetryKalshi(ReadyKalshi):
+            def __init__(self):
+                super().__init__()
+                self.book_calls = 0
+
+            def get_market(self, ticker):
+                return {"ticker": ticker, "status": "open"}
+
+            def get_orderbook(self, ticker):
+                self.book_calls += 1
+                if self.book_calls == 1:
+                    return OrderBook(
+                        Exchange.KALSHI,
+                        ticker,
+                        yes_asks=[BookLevel(45, Decimal("3"))],
+                        no_asks=[],
+                    )
+                return OrderBook(
+                    Exchange.KALSHI,
+                    ticker,
+                    yes_asks=[BookLevel(47, Decimal("3"))],
+                    no_asks=[],
+                )
+
+            def create_order(self, **kwargs):
+                self.orders.append(kwargs)
+                if len(self.orders) == 1:
+                    raise RuntimeError("kalshi rejected first FOK")
+                return {"ok": True, "venue": "kalshi", "payload": kwargs}
+
+        kalshi = RetryKalshi()
+        polymarket = ReadyPolymarket()
+        executor = TradeExecutor(
+            kalshi,
+            polymarket,
+            settings=SimpleNamespace(
+                hot_require_cross_50=False,
+                hot_hedge_retry_attempts=2,
+                hot_hedge_max_chase_cents=5,
+                hot_hedge_retry_delay_seconds=Decimal("0"),
+            ),
+        )
+
+        submitted, message = executor.execute_fast(executable_opportunity(), workflow="run-hot-arb")
+
+        self.assertTrue(submitted)
+        self.assertIn("missing leg completed after first-leg fill retry", message)
+        self.assertEqual(len(polymarket.orders), 1)
+        self.assertEqual(len(kalshi.orders), 2)
+        self.assertEqual(kalshi.orders[1]["price_cents"], 47)
+
+    def test_executor_does_not_retry_missing_leg_past_chase_cap(self):
+        class ChaseTooFarKalshi(ReadyKalshi):
+            def __init__(self):
+                super().__init__()
+                self.book_calls = 0
+
+            def get_market(self, ticker):
+                return {"ticker": ticker, "status": "open"}
+
+            def get_orderbook(self, ticker):
+                self.book_calls += 1
+                if self.book_calls == 1:
+                    return OrderBook(
+                        Exchange.KALSHI,
+                        ticker,
+                        yes_asks=[BookLevel(45, Decimal("3"))],
+                        no_asks=[],
+                    )
+                return OrderBook(
+                    Exchange.KALSHI,
+                    ticker,
+                    yes_asks=[BookLevel(60, Decimal("3"))],
+                    no_asks=[],
+                )
+
+            def create_order(self, **kwargs):
+                self.orders.append(kwargs)
+                raise RuntimeError("kalshi rejected first FOK")
+
+        kalshi = ChaseTooFarKalshi()
+        polymarket = ReadyPolymarket()
+        executor = TradeExecutor(
+            kalshi,
+            polymarket,
+            settings=SimpleNamespace(
+                hot_require_cross_50=False,
+                hot_hedge_retry_attempts=2,
+                hot_hedge_max_chase_cents=5,
+                hot_hedge_retry_delay_seconds=Decimal("0"),
+            ),
+        )
+
+        submitted, message = executor.execute_fast(executable_opportunity(), workflow="run-hot-arb")
+
+        self.assertFalse(submitted)
+        self.assertIn("manual_review_required", message)
+        self.assertEqual(len(polymarket.orders), 1)
+        self.assertEqual(len(kalshi.orders), 1)
+
     def test_executor_blocks_before_first_order_when_polymarket_balance_is_low(self):
         kalshi = ReadyKalshi(cash=Decimal("100"))
         polymarket = ReadyPolymarket(cash=Decimal("0.10"))

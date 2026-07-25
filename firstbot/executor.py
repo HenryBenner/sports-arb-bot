@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, replace
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 
@@ -117,6 +118,20 @@ class TradeExecutor:
             )
         except Exception as exc:
             if first_result is not None:
+                hedge_result = self._complete_missing_leg_after_first_fill(
+                    second_leg,
+                    polymarket_confirmation_timeout_seconds=polymarket_confirmation_timeout,
+                    original_error=exc,
+                )
+                if hedge_result is not None:
+                    hedge_response, hedge_detail = hedge_result
+                    prefix = f"{prefix}; " if prefix else ""
+                    return (
+                        True,
+                        f"{prefix}orders submitted: {first_leg.exchange.value}={first_result} "
+                        f"{second_leg.exchange.value}={hedge_response}; "
+                        f"missing leg completed after first-leg fill retry: {hedge_detail}",
+                    )
                 return (
                     False,
                     f"second leg failed after first leg {first_leg.exchange.value} "
@@ -183,6 +198,88 @@ class TradeExecutor:
                 confirmation_timeout_seconds=polymarket_confirmation_timeout_seconds,
             )
         raise RuntimeError(f"unsupported exchange: {leg.exchange}")
+
+    def _complete_missing_leg_after_first_fill(
+        self,
+        leg: ArbLeg,
+        polymarket_confirmation_timeout_seconds: float | None,
+        original_error: Exception,
+    ):
+        attempts = _settings_int(self.settings, "hot_hedge_retry_attempts", 2)
+        if attempts <= 0:
+            return None
+        delay_seconds = _settings_decimal(
+            self.settings,
+            "hot_hedge_retry_delay_seconds",
+            Decimal("0"),
+        )
+        max_chase_cents = _settings_int(self.settings, "hot_hedge_max_chase_cents", 5)
+        failures = [str(original_error)]
+        for attempt in range(1, attempts + 1):
+            try:
+                refreshed_leg = self._refreshed_missing_leg_for_hedge(
+                    leg,
+                    max_chase_cents=max_chase_cents,
+                )
+                result = self._buy_leg(
+                    refreshed_leg,
+                    polymarket_confirmation_timeout_seconds=polymarket_confirmation_timeout_seconds,
+                )
+                return (
+                    result,
+                    f"attempt={attempt} limit={refreshed_leg.price_cents}c "
+                    f"avg={_decimal_text(refreshed_leg.avg_price_cents or Decimal(refreshed_leg.price_cents))}c",
+                )
+            except Exception as exc:
+                failures.append(f"retry {attempt}: {exc}")
+                if attempt < attempts and delay_seconds > 0:
+                    time.sleep(float(delay_seconds))
+        return None
+
+    def _refreshed_missing_leg_for_hedge(
+        self,
+        leg: ArbLeg,
+        max_chase_cents: int,
+    ) -> ArbLeg:
+        levels = self._fresh_ask_levels(leg)
+        max_limit = min(99, int(leg.price_cents) + max(0, int(max_chase_cents)))
+        fill = _weighted_fill_for_size(levels, leg.size)
+        if fill is None:
+            raise RuntimeError(
+                f"missing_leg_hedge_depth_unavailable: no {leg.exchange.value} "
+                f"{leg.side.value} depth for {leg.market_id}"
+            )
+        limit_cents, avg_cents = fill
+        if limit_cents > max_limit:
+            raise RuntimeError(
+                "missing_leg_hedge_chase_limit_exceeded: "
+                f"{leg.exchange.value} {leg.market_id} {leg.side.value} needs "
+                f"{limit_cents}c, max={max_limit}c"
+            )
+        refreshed = replace(
+            leg,
+            price_cents=limit_cents,
+            avg_price_cents=avg_cents,
+        )
+        if refreshed.exchange is Exchange.POLYMARKET:
+            self._validate_polymarket_minimum_notional(
+                refreshed,
+                BookLevel(refreshed.price_cents, refreshed.size),
+                refreshed.size,
+            )
+            notional = _leg_notional_usd(refreshed)
+            try:
+                available = Decimal(self.polymarket.available_cash_usd())
+            except Exception as exc:
+                raise RuntimeError(
+                    f"polymarket_balance_unavailable during missing leg hedge: {exc}"
+                ) from exc
+            if available < notional:
+                raise RuntimeError(
+                    "polymarket_balance_insufficient during missing leg hedge: "
+                    f"available=${_decimal_text(available)} required=${_decimal_text(notional)}"
+                )
+        return refreshed
 
     def _refresh_arb_for_immediate_fill(self, opportunity: ArbOpportunity) -> tuple[ArbOpportunity, str]:
         yes_levels = self._fresh_ask_levels(opportunity.buy_yes)
@@ -630,6 +727,20 @@ def _truthy(value: object) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in {"1", "true", "yes", "y"}
+
+
+def _settings_int(settings: Settings | None, name: str, default: int) -> int:
+    value = getattr(settings, name, default) if settings is not None else default
+    return int(value)
+
+
+def _settings_decimal(
+    settings: Settings | None,
+    name: str,
+    default: Decimal,
+) -> Decimal:
+    value = getattr(settings, name, default) if settings is not None else default
+    return Decimal(value)
 
 
 def _leg_notional_usd(leg: ArbLeg) -> Decimal:

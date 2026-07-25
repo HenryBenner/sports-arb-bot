@@ -86,6 +86,9 @@ class Settings:
     hot_require_cross_50: bool = True
     hot_require_source_price_alignment: bool = False
     hot_source_price_max_deviation_cents: Decimal = Decimal("10")
+    hot_hedge_retry_attempts: int = 2
+    hot_hedge_max_chase_cents: int = 5
+    hot_hedge_retry_delay_seconds: Decimal = Decimal("0.25")
     hot_allowed_event_types: tuple[str, ...] = ("sports", "esports")
     hot_geoblock_check: bool = True
     startup_readiness: bool = True
@@ -204,6 +207,12 @@ class Settings:
             hot_source_price_max_deviation_cents=_decimal_env(
                 "BOT_HOT_SOURCE_PRICE_MAX_DEVIATION_CENTS",
                 "10",
+            ),
+            hot_hedge_retry_attempts=_int_env("BOT_HOT_HEDGE_RETRY_ATTEMPTS", 2),
+            hot_hedge_max_chase_cents=_int_env("BOT_HOT_HEDGE_MAX_CHASE_CENTS", 5),
+            hot_hedge_retry_delay_seconds=_decimal_env(
+                "BOT_HOT_HEDGE_RETRY_DELAY_SECONDS",
+                "0.25",
             ),
             hot_allowed_event_types=_channels_env(
                 "BOT_HOT_ALLOWED_EVENT_TYPES",
