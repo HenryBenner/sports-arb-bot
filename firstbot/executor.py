@@ -98,6 +98,9 @@ class TradeExecutor:
                     False,
                     f"live opposite-price guard failed before order submission: {cross_50_blocker}",
                 )
+        kalshi_blocker = self._kalshi_preflight_block_reason(opportunity)
+        if kalshi_blocker:
+            return False, kalshi_blocker
         first_leg, second_leg = _execution_order(opportunity)
         first_result = None
         polymarket_confirmation_timeout = _polymarket_confirmation_timeout_seconds(
@@ -293,6 +296,46 @@ class TradeExecutor:
         return (
             "polymarket_balance_insufficient before order submission: "
             f"available=${_decimal_text(available)} required=${_decimal_text(notional)}"
+        )
+
+    def _kalshi_preflight_block_reason(self, opportunity: ArbOpportunity) -> str | None:
+        kalshi_leg = _kalshi_leg(opportunity)
+        if kalshi_leg is None:
+            return None
+        if hasattr(self.kalshi, "get_market"):
+            try:
+                market = self.kalshi.get_market(kalshi_leg.market_id)
+            except Exception as exc:
+                return f"kalshi_preflight_unavailable before polymarket order: market check failed: {exc}"
+            inactive_reason = _kalshi_market_inactive_reason(market)
+            if inactive_reason:
+                return (
+                    "kalshi_market_not_active before polymarket order: "
+                    f"{kalshi_leg.market_id} {inactive_reason}"
+                )
+        if not hasattr(self.kalshi, "get_orderbook"):
+            return None
+        try:
+            book: OrderBook = self.kalshi.get_orderbook(kalshi_leg.market_id)
+        except Exception as exc:
+            return f"kalshi_preflight_unavailable before polymarket order: orderbook check failed: {exc}"
+        levels = book.yes_asks if kalshi_leg.side is Side.YES else book.no_asks
+        executable_size = sum(
+            (
+                Decimal(level.size)
+                for level in levels
+                if int(level.price_cents) <= int(kalshi_leg.price_cents)
+            ),
+            Decimal("0"),
+        )
+        required_size = Decimal(kalshi_leg.size)
+        if executable_size >= required_size:
+            return None
+        return (
+            "kalshi_fok_depth_insufficient before polymarket order: "
+            f"{kalshi_leg.market_id} {kalshi_leg.side.value} needs "
+            f"{_decimal_text(required_size)} contracts <= {kalshi_leg.price_cents}c, "
+            f"available={_decimal_text(executable_size)}"
         )
 
 
@@ -532,6 +575,61 @@ def _polymarket_leg(opportunity: ArbOpportunity) -> ArbLeg | None:
         ),
         None,
     )
+
+
+def _kalshi_leg(opportunity: ArbOpportunity) -> ArbLeg | None:
+    return next(
+        (
+            leg
+            for leg in (opportunity.buy_yes, opportunity.buy_no)
+            if leg.exchange is Exchange.KALSHI
+        ),
+        None,
+    )
+
+
+def _kalshi_market_inactive_reason(market: object) -> str | None:
+    if not isinstance(market, dict):
+        return None
+    if _truthy(market.get("closed")):
+        return "closed=true"
+    if _truthy(market.get("archived")):
+        return "archived=true"
+    if _truthy(market.get("paused")):
+        return "paused=true"
+    for key in ("status", "state", "trading_status"):
+        value = market.get(key)
+        if value is None:
+            continue
+        normalized = str(value).strip().lower()
+        if normalized in {
+            "active",
+            "open",
+            "opened",
+            "trading",
+            "initialized",
+            "live",
+        }:
+            return None
+        if normalized in {
+            "closed",
+            "settled",
+            "resolved",
+            "finalized",
+            "inactive",
+            "halted",
+            "paused",
+            "terminated",
+            "delisted",
+        }:
+            return f"{key}={value}"
+    return None
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y"}
 
 
 def _leg_notional_usd(leg: ArbLeg) -> Decimal:

@@ -207,9 +207,46 @@ class DeployGuardTests(unittest.TestCase):
         self.assertFalse(submitted)
         self.assertIn("polymarket_balance_unavailable before order submission", message)
 
+    def test_executor_blocks_polymarket_when_kalshi_market_is_inactive(self):
+        class InactiveKalshi(ReadyKalshi):
+            def get_market(self, ticker):
+                return {"ticker": ticker, "status": "closed"}
+
+        polymarket = ReadyPolymarket()
+        executor = TradeExecutor(InactiveKalshi(), polymarket)
+
+        submitted, message = executor.execute_fast(executable_opportunity(), workflow="run-hot-arb")
+
+        self.assertFalse(submitted)
+        self.assertIn("kalshi_market_not_active before polymarket order", message)
+        self.assertEqual(polymarket.orders, [])
+
+    def test_executor_blocks_polymarket_when_kalshi_fok_depth_is_insufficient(self):
+        class ThinKalshi(ReadyKalshi):
+            def get_market(self, ticker):
+                return {"ticker": ticker, "status": "open"}
+
+            def get_orderbook(self, ticker):
+                return OrderBook(
+                    Exchange.KALSHI,
+                    ticker,
+                    yes_asks=[BookLevel(45, Decimal("1"))],
+                    no_asks=[],
+                )
+
+        polymarket = ReadyPolymarket()
+        executor = TradeExecutor(ThinKalshi(), polymarket)
+
+        submitted, message = executor.execute_fast(executable_opportunity(), workflow="run-hot-arb")
+
+        self.assertFalse(submitted)
+        self.assertIn("kalshi_fok_depth_insufficient before polymarket order", message)
+        self.assertIn("needs 3 contracts <= 45c, available=1", message)
+        self.assertEqual(polymarket.orders, [])
+
     def test_executor_fast_path_checks_balance_but_skips_rest_refresh(self):
         class NoSlowPathKalshi(ReadyKalshi):
-            def get_orderbook(self, ticker):
+            def get_best_ask(self, ticker, side):
                 raise RuntimeError("REST refresh should not be called")
 
         class NoSlowPathPolymarket(ReadyPolymarket):
