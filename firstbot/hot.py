@@ -445,7 +445,7 @@ class HotArbRunner:
         self.log_dir = _log_dir_path(log_dir)
         self._log_filename_overrides: dict[str, str] = {}
         self._kalshi_market_cache: dict[str, dict] = {}
-        self.used_contract_ids: set[str] = set()
+        self.used_contract_ids: set[str] = self._load_used_contract_ids()
         self._live_halt_reason: str | None = None
         self._printed_expiring_candidate_keys: set[str] = set()
         self._printed_expiring_blocked_keys: set[str] = set()
@@ -896,8 +896,42 @@ class HotArbRunner:
         return any(leg.market_id in self.used_contract_ids for leg in opportunity.legs)
 
     def _mark_contracts_used(self, opportunity: PredictionHuntOpportunity) -> None:
+        newly_used: list[str] = []
         for leg in opportunity.legs:
-            self.used_contract_ids.add(leg.market_id)
+            if leg.market_id not in self.used_contract_ids:
+                self.used_contract_ids.add(leg.market_id)
+                newly_used.append(leg.market_id)
+        if newly_used:
+            self._write_jsonl(
+                "hot_used_contracts.jsonl",
+                {
+                    "timestamp": self.clock().isoformat(),
+                    "group_id": opportunity.group_id,
+                    "group_title": opportunity.group_title,
+                    "contract_ids": newly_used,
+                    "legs": [_ph_leg_record(leg) for leg in opportunity.legs],
+                },
+            )
+
+    def _load_used_contract_ids(self) -> set[str]:
+        path = self._log_path("hot_used_contracts.jsonl")
+        if not path.is_file():
+            return set()
+        used: set[str] = set()
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return used
+        for line in lines:
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            for contract_id in record.get("contract_ids") or ():
+                text = str(contract_id or "").strip()
+                if text:
+                    used.add(text)
+        return used
 
     def _log_candidate(self, opportunity: PredictionHuntOpportunity, action: str, message: str) -> None:
         self._write_jsonl(

@@ -2221,6 +2221,47 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(runner._uses_previously_triggered_contract(second))
 
+    def test_used_contract_guard_persists_across_runner_restart(self):
+        first = ph_opportunity(group_id=1)
+        second = PredictionHuntOpportunity(
+            group_id=2,
+            group_title="Shares one contract after restart",
+            event_date=NOW.isoformat(),
+            event_type="politics",
+            roi_pct=Decimal("4.0"),
+            total_cost=Decimal("0.96"),
+            max_wager_usd=Decimal("5"),
+            detected_at=NOW.isoformat(),
+            legs=(
+                PredictionHuntLeg(
+                    side=Side.YES,
+                    platform=Exchange.POLYMARKET,
+                    market_id="poly-1",
+                    source_url=None,
+                    price=Decimal("0.48"),
+                    liquidity_usd=Decimal("10"),
+                    fee_usd=Decimal("0"),
+                ),
+                PredictionHuntLeg(
+                    side=Side.NO,
+                    platform=Exchange.KALSHI,
+                    market_id="KALSHI-2",
+                    source_url=None,
+                    price=Decimal("0.48"),
+                    liquidity_usd=Decimal("10"),
+                    fee_usd=Decimal("0"),
+                ),
+            ),
+            raw={},
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = HotArbRunner(None, None, None, settings(), log_dir=tmp, clock=lambda: NOW)
+            runner._mark_contracts_used(first)
+
+            restarted = HotArbRunner(None, None, None, settings(), log_dir=tmp, clock=lambda: NOW)
+
+            self.assertTrue(restarted._uses_previously_triggered_contract(second))
+
 
 if __name__ == "__main__":
     unittest.main()
