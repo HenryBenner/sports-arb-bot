@@ -2335,7 +2335,7 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
                 Decimal("240"),
             )
 
-    async def test_live_watch_logs_each_distinct_block_reason_once(self):
+    async def test_live_watch_logs_only_first_ordinary_block(self):
         class FakeKalshiClient:
             base_url = "https://example.test"
 
@@ -2411,10 +2411,82 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
                 Path(tmp) / "hot_live_trades.jsonl"
             ).read_text(encoding="utf-8").splitlines()
             self.assertEqual(engine.calls, 4)
-            self.assertEqual(len(trigger_lines), 2)
-            self.assertEqual(len(log_lines), 2)
+            self.assertEqual(len(trigger_lines), 1)
+            self.assertEqual(len(log_lines), 1)
             self.assertIn("opportunity is blocked", trigger_lines[0])
-            self.assertIn("kalshi market inactive", trigger_lines[1])
+
+    async def test_cross_fifty_block_disables_market_watch_after_first_trigger(self):
+        class FakeKalshiClient:
+            base_url = "https://example.test"
+
+        class FakePolymarketClient:
+            clob_url = "https://example.test"
+
+        class CrossFiftyBlockedEngine:
+            near_miss_cost_cents = 100
+
+            def __init__(self):
+                self.calls = 0
+                self.last_execution_opportunity = None
+
+            def evaluate(self, watch, now):
+                return verified_arb()
+
+            def execute_if_allowed(self, opportunity, execute, **kwargs):
+                self.calls += 1
+                return (
+                    False,
+                    "opportunity is blocked: approved leg limits must be on "
+                    "opposite sides of 50c (got 43c and 42c)",
+                )
+
+        async def repeated_updates(streams, expires_at, clock):
+            for _ in range(4):
+                yield LiveLegBook(
+                    Exchange.POLYMARKET,
+                    "poly-1",
+                    Side.YES,
+                    BookLevel(42, Decimal("20")),
+                    NOW,
+                    True,
+                    True,
+                    min_order_size=Decimal("3"),
+                )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = HotArbRunner(
+                None,
+                FakeKalshiClient(),
+                FakePolymarketClient(),
+                settings(live=True),
+                log_dir=tmp,
+                clock=lambda: NOW,
+            )
+            watch = HotWatchManager(600, 3, 20, True, clock=lambda: NOW).add_or_refresh(
+                ph_opportunity(yes_price="0.43", no_price="0.42"),
+                ph_outcome_keys(),
+            )[0]
+            assert watch is not None
+            engine = CrossFiftyBlockedEngine()
+
+            from firstbot import hot
+
+            original_merge_streams = hot.merge_streams
+            hot.merge_streams = repeated_updates
+            try:
+                with redirect_stdout(StringIO()) as stdout:
+                    await runner._watch_market(watch, engine, execute=True)
+            finally:
+                hot.merge_streams = original_merge_streams
+
+            trigger_lines = [
+                line
+                for line in stdout.getvalue().splitlines()
+                if line.startswith("hot trigger:")
+            ]
+            self.assertEqual(engine.calls, 1)
+            self.assertEqual(len(trigger_lines), 1)
+            self.assertTrue(watch.disabled)
 
     def test_used_contract_guard_blocks_future_candidates_with_either_leg(self):
         runner = HotArbRunner(None, None, None, settings(), clock=lambda: NOW)

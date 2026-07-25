@@ -90,7 +90,8 @@ class HotWatch:
     triggered: bool = False
     books: dict[tuple[Exchange, str, Side], LiveLegBook] | None = None
     near_misses_logged: set[int] = field(default_factory=set)
-    blocked_messages_logged: set[str] = field(default_factory=set)
+    blocked_trigger_logged: bool = False
+    disabled: bool = False
     spent_cents_by_exchange: dict[Exchange, Decimal] = field(
         default_factory=lambda: {
             Exchange.KALSHI: Decimal("0"),
@@ -672,7 +673,7 @@ class HotArbRunner:
                     continue
                 self._restore_pair_spend(watch)
                 self._log_candidate(opportunity, status, "hot watch active")
-                if watch.key not in active_tasks:
+                if watch.key not in active_tasks and not watch.disabled:
                     active_tasks[watch.key] = asyncio.create_task(
                         self._watch_market(watch, engine, execute)
                     )
@@ -843,10 +844,21 @@ class HotArbRunner:
                     )
                     if execute and submitted:
                         self._record_completed_pair_batch(watch, executed_opportunity)
-                    block_key = _normalized_block_message(message)
-                    should_log_trigger = submitted or block_key not in watch.blocked_messages_logged
-                    if not submitted:
-                        watch.blocked_messages_logged.add(block_key)
+                    critical_block = (
+                        not submitted
+                        and (
+                            _may_have_live_exposure(message)
+                            or _requires_live_halt(message)
+                            or _incremental_budget_exhausted(message)
+                        )
+                    )
+                    should_log_trigger = (
+                        submitted
+                        or critical_block
+                        or not watch.blocked_trigger_logged
+                    )
+                    if not submitted and not critical_block:
+                        watch.blocked_trigger_logged = True
                     if should_log_trigger:
                         self._log_trigger(
                             watch,
@@ -883,6 +895,9 @@ class HotArbRunner:
                         continue
                     if execute and _incremental_budget_exhausted(message):
                         self._mark_contracts_used(watch.opportunity)
+                        return
+                    if not submitted and _cross_50_blocked(message):
+                        watch.disabled = True
                         return
                     if execute and not _requires_live_halt(message):
                         continue
@@ -1783,6 +1798,10 @@ def _incremental_budget_exhausted(message: str) -> bool:
     return "incremental_budget_exhausted" in str(message or "").lower()
 
 
+def _cross_50_blocked(message: str) -> bool:
+    return "must be on opposite sides of 50c" in str(message or "").lower()
+
+
 def _is_polymarket_geoblock_error(message: str) -> bool:
     lowered = " ".join(str(message or "").lower().split())
     return (
@@ -1800,10 +1819,6 @@ def _short_reason(message: str, limit: int = 160) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 3] + "..."
-
-
-def _normalized_block_message(message: str) -> str:
-    return " ".join(str(message or "").split()).casefold()
 
 
 def _json_default(value):
