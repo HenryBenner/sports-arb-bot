@@ -31,6 +31,7 @@ def settings(
         kalshi_base_url="https://kalshi.example.test",
         kalshi_api_key_id="kalshi-key",
         kalshi_private_key_path=key_path,
+        kalshi_private_key=None,
         kalshi_fee_rate=Decimal("0.07"),
         polymarket_gamma_url="https://gamma.example.test",
         polymarket_clob_url="https://clob.example.test",

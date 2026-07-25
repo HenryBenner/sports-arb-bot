@@ -17,6 +17,7 @@ def settings(kalshi_rate: str = "0.07", polymarket_rate: str = "0.05") -> Settin
         kalshi_base_url="https://example.test",
         kalshi_api_key_id=None,
         kalshi_private_key_path=None,
+        kalshi_private_key=None,
         kalshi_fee_rate=Decimal(kalshi_rate),
         polymarket_gamma_url="https://example.test",
         polymarket_clob_url="https://example.test",

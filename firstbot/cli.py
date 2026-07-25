@@ -357,6 +357,7 @@ def scan(config_path: str, offline_fixture: str | None = None) -> int:
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -389,6 +390,7 @@ def scan_input(input_value: str, candidate: str | None, rules_compatible: bool) 
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -463,6 +465,7 @@ def scan_predictionhunt(category: str, limit: int, execute: bool) -> int:
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -550,6 +553,7 @@ def run_predictionhunt(
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -639,6 +643,7 @@ def run_hot_arb(
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -730,6 +735,7 @@ def run_live_readiness(
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -787,6 +793,7 @@ def run_signal_bot(
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -830,6 +837,7 @@ def update_signal_results(log_dir: str, csv_path: str | None, backup: bool) -> i
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -886,6 +894,7 @@ def run_manual_sports_arb(
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -962,6 +971,7 @@ def ws_probe(
         base_url=settings.kalshi_base_url,
         api_key_id=settings.kalshi_api_key_id,
         private_key_path=settings.kalshi_private_key_path,
+        private_key=settings.kalshi_private_key,
         http=http,
     )
     polymarket = PolymarketClient(
@@ -1120,8 +1130,8 @@ def _deploy_guard(
         missing.append("PREDICTIONHUNT_API_KEY")
     if not settings.kalshi_api_key_id:
         missing.append("KALSHI_API_KEY_ID")
-    if not settings.kalshi_private_key_path:
-        missing.append("KALSHI_PRIVATE_KEY_PATH")
+    if not (settings.kalshi_private_key or settings.kalshi_private_key_path):
+        missing.append("KALSHI_PRIVATE_KEY or KALSHI_PRIVATE_KEY_PATH")
     if not polymarket.supports_immediate_orders():
         missing.append("Polymarket CLOB SDK/credentials with FOK support")
     if not kalshi.supports_immediate_orders():
@@ -1140,8 +1150,8 @@ def _signal_deploy_guard(settings: Settings) -> None:
         missing.append("PREDICTIONHUNT_WS_URL")
     if not settings.kalshi_api_key_id:
         missing.append("KALSHI_API_KEY_ID")
-    if not settings.kalshi_private_key_path:
-        missing.append("KALSHI_PRIVATE_KEY_PATH")
+    if not (settings.kalshi_private_key or settings.kalshi_private_key_path):
+        missing.append("KALSHI_PRIVATE_KEY or KALSHI_PRIVATE_KEY_PATH")
     if missing:
         raise RuntimeError("signal live deploy guard failed: missing " + ", ".join(missing))
 

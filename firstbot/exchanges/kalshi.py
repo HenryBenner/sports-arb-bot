@@ -18,11 +18,13 @@ class KalshiClient:
         base_url: str,
         api_key_id: str | None = None,
         private_key_path: str | None = None,
+        private_key: str | None = None,
         http: HttpClient | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key_id = api_key_id
         self.private_key_path = private_key_path
+        self.private_key = private_key
         self.http = http or HttpClient()
 
     def get_markets(self, **params: Any) -> dict[str, Any]:
@@ -105,8 +107,8 @@ class KalshiClient:
         )
 
     def _auth_headers(self, method: str, path: str) -> dict[str, str]:
-        if not self.api_key_id or not self.private_key_path:
-            raise RuntimeError("Kalshi API key and private key path are required for trading")
+        if not self.api_key_id or not (self.private_key or self.private_key_path):
+            raise RuntimeError("Kalshi API key and private key are required for trading")
         timestamp_ms = str(int(time.time() * 1000))
         signing_path = self._signing_path(path)
         message = f"{timestamp_ms}{method}{signing_path}".encode("utf-8")
@@ -130,7 +132,10 @@ class KalshiClient:
         except ImportError as exc:
             raise RuntimeError("Install cryptography to sign Kalshi requests") from exc
 
-        private_key_bytes = Path(self.private_key_path or "").read_bytes()
+        if self.private_key:
+            private_key_bytes = _private_key_bytes_from_env(self.private_key)
+        else:
+            private_key_bytes = Path(self.private_key_path or "").read_bytes()
         private_key = serialization.load_pem_private_key(private_key_bytes, password=None)
         signature = private_key.sign(
             message,
@@ -189,6 +194,13 @@ def _cash_from_balance_response(raw: dict[str, Any]) -> Decimal:
             return amount / Decimal("100")
         return amount
     raise RuntimeError("Kalshi balance response did not include available cash")
+
+
+def _private_key_bytes_from_env(value: str) -> bytes:
+    text = str(value).strip().strip('"').strip("'")
+    if "\\n" in text and "\n" not in text:
+        text = text.replace("\\n", "\n")
+    return text.encode("utf-8")
 
 
 def _v2_order_side_and_price(side: Side, price_cents: int) -> tuple[str, int]:

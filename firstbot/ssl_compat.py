@@ -17,4 +17,6 @@ def windows_truststore_context() -> ssl.SSLContext | None:
 def websocket_ssl_context(url: str) -> ssl.SSLContext | None:
     if not url.lower().startswith("wss://"):
         return None
-    return windows_truststore_context()
+    if os.name == "nt":
+        return windows_truststore_context()
+    return ssl.create_default_context()

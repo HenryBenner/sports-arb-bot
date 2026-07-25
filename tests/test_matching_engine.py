@@ -580,6 +580,7 @@ def settings(live=False):
         kalshi_base_url="https://kalshi.example",
         kalshi_api_key_id=None,
         kalshi_private_key_path=None,
+        kalshi_private_key=None,
         kalshi_fee_rate=Decimal("0"),
         polymarket_gamma_url="https://gamma.example",
         polymarket_clob_url="https://clob.example",

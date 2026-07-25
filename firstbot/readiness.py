@@ -219,9 +219,11 @@ class LiveReadinessChecker:
     def _check_kalshi_signing(self) -> str:
         if not self.settings.kalshi_api_key_id:
             raise RuntimeError("kalshi_api_key_missing")
+        if self.settings.kalshi_private_key:
+            return
         key_path = self.settings.kalshi_private_key_path
         if not key_path:
-            raise RuntimeError("kalshi_private_key_path_missing")
+            raise RuntimeError("kalshi_private_key_missing")
         if not Path(key_path).is_file():
             raise RuntimeError(f"kalshi_private_key_file_missing: {key_path}")
         self.kalshi._auth_headers("GET", "/trade-api/ws/v2")

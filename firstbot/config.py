@@ -53,6 +53,7 @@ class Settings:
     kalshi_base_url: str
     kalshi_api_key_id: str | None
     kalshi_private_key_path: str | None
+    kalshi_private_key: str | None
     kalshi_fee_rate: Decimal
     polymarket_gamma_url: str
     polymarket_clob_url: str
@@ -142,6 +143,7 @@ class Settings:
             ).rstrip("/"),
             kalshi_api_key_id=os.getenv("KALSHI_API_KEY_ID") or None,
             kalshi_private_key_path=os.getenv("KALSHI_PRIVATE_KEY_PATH") or None,
+            kalshi_private_key=os.getenv("KALSHI_PRIVATE_KEY") or None,
             kalshi_fee_rate=_decimal_env("KALSHI_FEE_RATE", "0.07"),
             polymarket_gamma_url=os.getenv(
                 "POLYMARKET_GAMMA_URL",
