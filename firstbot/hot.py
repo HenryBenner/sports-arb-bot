@@ -90,6 +90,7 @@ class HotWatch:
     triggered: bool = False
     books: dict[tuple[Exchange, str, Side], LiveLegBook] | None = None
     near_misses_logged: set[int] = field(default_factory=set)
+    blocked_messages_logged: set[str] = field(default_factory=set)
     spent_cents_by_exchange: dict[Exchange, Decimal] = field(
         default_factory=lambda: {
             Exchange.KALSHI: Decimal("0"),
@@ -843,13 +844,18 @@ class HotArbRunner:
                     )
                     if execute and submitted:
                         self._record_completed_pair_batch(watch, executed_opportunity)
-                    self._log_trigger(
-                        watch,
-                        executed_opportunity,
-                        mode,
-                        "executed" if submitted else "blocked",
-                        message,
-                    )
+                    block_key = _normalized_block_message(message)
+                    should_log_trigger = submitted or block_key not in watch.blocked_messages_logged
+                    if not submitted:
+                        watch.blocked_messages_logged.add(block_key)
+                    if should_log_trigger:
+                        self._log_trigger(
+                            watch,
+                            executed_opportunity,
+                            mode,
+                            "executed" if submitted else "blocked",
+                            message,
+                        )
                     cumulative = (
                         " "
                         f"batch_size={executed_opportunity.buy_yes.size} "
@@ -858,13 +864,14 @@ class HotArbRunner:
                         if execute and submitted
                         else ""
                     )
-                    print(
-                        f"hot trigger: {executed_opportunity.pair_name} "
-                        f"gross={executed_opportunity.gross_cost_cents}c net={executed_opportunity.net_profit_cents}c "
-                        f"action={'executed' if submitted else 'blocked'}"
-                        f"{'' if submitted else ' reason=' + _short_reason(message)}"
-                        f"{cumulative}"
-                    )
+                    if should_log_trigger:
+                        print(
+                            f"hot trigger: {executed_opportunity.pair_name} "
+                            f"gross={executed_opportunity.gross_cost_cents}c net={executed_opportunity.net_profit_cents}c "
+                            f"action={'executed' if submitted else 'blocked'}"
+                            f"{'' if submitted else ' reason=' + _short_reason(message)}"
+                            f"{cumulative}"
+                        )
                     if execute and _may_have_live_exposure(message) and not submitted:
                         self._mark_contracts_used(watch.opportunity)
                     if execute and not submitted and _requires_live_halt(message):
@@ -1803,6 +1810,10 @@ def _short_reason(message: str, limit: int = 160) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 3] + "..."
+
+
+def _normalized_block_message(message: str) -> str:
+    return " ".join(str(message or "").split()).casefold()
 
 
 def _json_default(value):

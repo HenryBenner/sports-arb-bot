@@ -126,6 +126,34 @@ def ph_outcome_keys(group_id: int = 1) -> dict[tuple[Exchange, str, Side], str]:
     }
 
 
+def verified_arb() -> ArbOpportunity:
+    return ArbOpportunity(
+        pair_name="Market 1",
+        buy_yes=ArbLeg(
+            Exchange.POLYMARKET,
+            "poly-1",
+            Side.YES,
+            40,
+            Decimal("3"),
+            avg_price_cents=Decimal("40"),
+        ),
+        buy_no=ArbLeg(
+            Exchange.KALSHI,
+            "KALSHI-1",
+            Side.NO,
+            55,
+            Decimal("3"),
+            avg_price_cents=Decimal("55"),
+        ),
+        gross_cost_cents=Decimal("95"),
+        buffers_cents=Decimal("0"),
+        net_profit_cents=Decimal("5"),
+        executable=True,
+        blockers=(),
+        event_type="sports",
+    )
+
+
 class HotWatchManagerTests(unittest.TestCase):
     def test_categoryless_watch_accepts_non_sports_and_refreshes_duplicate(self):
         manager = HotWatchManager(600, 3, 20, True, clock=lambda: NOW)
@@ -2197,31 +2225,7 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
         class FakePolymarketClient:
             clob_url = "https://example.test"
 
-        executed = ArbOpportunity(
-            pair_name="Market 1",
-            buy_yes=ArbLeg(
-                Exchange.POLYMARKET,
-                "poly-1",
-                Side.YES,
-                40,
-                Decimal("3"),
-                avg_price_cents=Decimal("40"),
-            ),
-            buy_no=ArbLeg(
-                Exchange.KALSHI,
-                "KALSHI-1",
-                Side.NO,
-                55,
-                Decimal("3"),
-                avg_price_cents=Decimal("55"),
-            ),
-            gross_cost_cents=Decimal("95"),
-            buffers_cents=Decimal("0"),
-            net_profit_cents=Decimal("5"),
-            executable=True,
-            blockers=(),
-            event_type="sports",
-        )
+        executed = verified_arb()
 
         class RepeatingEngine:
             near_miss_cost_cents = 100
@@ -2325,6 +2329,87 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
                 restored_watch.spent_cents_by_exchange[Exchange.POLYMARKET],
                 Decimal("240"),
             )
+
+    async def test_live_watch_logs_each_distinct_block_reason_once(self):
+        class FakeKalshiClient:
+            base_url = "https://example.test"
+
+        class FakePolymarketClient:
+            clob_url = "https://example.test"
+
+        class BlockedEngine:
+            near_miss_cost_cents = 100
+
+            def __init__(self):
+                self.calls = 0
+                self.last_execution_opportunity = None
+
+            def evaluate(self, watch, now):
+                return verified_arb()
+
+            def execute_if_allowed(self, opportunity, execute, **kwargs):
+                reasons = (
+                    "opportunity is blocked",
+                    "opportunity is blocked",
+                    "kalshi market inactive",
+                    "kalshi market inactive",
+                )
+                reason = reasons[self.calls]
+                self.calls += 1
+                return False, reason
+
+        async def four_updates(streams, expires_at, clock):
+            for _ in range(4):
+                yield LiveLegBook(
+                    Exchange.POLYMARKET,
+                    "poly-1",
+                    Side.YES,
+                    BookLevel(40, Decimal("20")),
+                    NOW,
+                    True,
+                    True,
+                    min_order_size=Decimal("3"),
+                )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = HotArbRunner(
+                None,
+                FakeKalshiClient(),
+                FakePolymarketClient(),
+                settings(live=True),
+                log_dir=tmp,
+                clock=lambda: NOW,
+            )
+            watch = HotWatchManager(600, 3, 20, True, clock=lambda: NOW).add_or_refresh(
+                ph_opportunity(yes_price="0.40", no_price="0.55"),
+                ph_outcome_keys(),
+            )[0]
+            assert watch is not None
+            engine = BlockedEngine()
+
+            from firstbot import hot
+
+            original_merge_streams = hot.merge_streams
+            hot.merge_streams = four_updates
+            try:
+                with redirect_stdout(StringIO()) as stdout:
+                    await runner._watch_market(watch, engine, execute=True)
+            finally:
+                hot.merge_streams = original_merge_streams
+
+            trigger_lines = [
+                line
+                for line in stdout.getvalue().splitlines()
+                if line.startswith("hot trigger:")
+            ]
+            log_lines = (
+                Path(tmp) / "hot_live_trades.jsonl"
+            ).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(engine.calls, 4)
+            self.assertEqual(len(trigger_lines), 2)
+            self.assertEqual(len(log_lines), 2)
+            self.assertIn("opportunity is blocked", trigger_lines[0])
+            self.assertIn("kalshi market inactive", trigger_lines[1])
 
     def test_used_contract_guard_blocks_future_candidates_with_either_leg(self):
         runner = HotArbRunner(None, None, None, settings(), clock=lambda: NOW)
