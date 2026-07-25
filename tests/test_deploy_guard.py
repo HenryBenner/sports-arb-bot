@@ -180,40 +180,39 @@ class DeployGuardTests(unittest.TestCase):
         self.assertIn("manual_review_required", message)
         self.assertEqual(len(polymarket.orders), 1)
 
-    def test_executor_does_not_balance_check_before_first_order(self):
+    def test_executor_blocks_before_first_order_when_polymarket_balance_is_low(self):
         kalshi = ReadyKalshi(cash=Decimal("100"))
         polymarket = ReadyPolymarket(cash=Decimal("0.10"))
         executor = TradeExecutor(kalshi, polymarket)
 
         submitted, message = executor.execute(executable_opportunity(), workflow="run-hot-arb")
 
-        self.assertTrue(submitted)
-        self.assertIn("orders submitted", message)
+        self.assertFalse(submitted)
+        self.assertIn("polymarket_balance_insufficient before order submission", message)
+        self.assertEqual(polymarket.orders, [])
 
-    def test_executor_does_not_call_balance_endpoint_before_order(self):
+    def test_executor_blocks_before_first_order_when_polymarket_balance_is_unavailable(self):
         class UnknownBalanceKalshi(ReadyKalshi):
             def available_cash_usd(self):
                 raise RuntimeError("balance endpoint failed")
 
-        executor = TradeExecutor(UnknownBalanceKalshi(), ReadyPolymarket())
+        class UnknownBalancePolymarket(ReadyPolymarket):
+            def available_cash_usd(self):
+                raise RuntimeError("balance endpoint failed")
+
+        executor = TradeExecutor(UnknownBalanceKalshi(), UnknownBalancePolymarket())
 
         submitted, message = executor.execute(executable_opportunity(), workflow="run-hot-arb")
 
-        self.assertTrue(submitted)
-        self.assertIn("orders submitted", message)
+        self.assertFalse(submitted)
+        self.assertIn("polymarket_balance_unavailable before order submission", message)
 
-    def test_executor_fast_path_skips_balance_and_rest_refresh(self):
+    def test_executor_fast_path_checks_balance_but_skips_rest_refresh(self):
         class NoSlowPathKalshi(ReadyKalshi):
-            def available_cash_usd(self):
-                raise RuntimeError("balance endpoint should not be called")
-
             def get_orderbook(self, ticker):
                 raise RuntimeError("REST refresh should not be called")
 
         class NoSlowPathPolymarket(ReadyPolymarket):
-            def available_cash_usd(self):
-                raise RuntimeError("balance endpoint should not be called")
-
             def get_token_ask_levels(self, token_id):
                 raise RuntimeError("REST refresh should not be called")
 

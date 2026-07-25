@@ -751,10 +751,12 @@ class HotArbRunner:
                         f"action={'executed' if submitted else 'blocked'}"
                         f"{'' if submitted else ' reason=' + _short_reason(message)}"
                     )
+                    if execute and (submitted or _may_have_live_exposure(message)):
+                        self._mark_contracts_used(watch.opportunity)
                     if execute and not submitted and _requires_live_halt(message):
                         self._live_halt_reason = message
                     watch.triggered = True
-                    if not execute or submitted:
+                    if not execute:
                         self._mark_contracts_used(watch.opportunity)
                     return
                 if (
@@ -1503,6 +1505,16 @@ def _requires_live_halt(message: str) -> bool:
     return (
         "polymarket_order_state_uncertain" in lowered
         or "manual_review_required" in lowered
+    )
+
+
+def _may_have_live_exposure(message: str) -> bool:
+    lowered = str(message or "").lower()
+    return (
+        "orders submitted" in lowered
+        or "second leg failed after first leg" in lowered
+        or "manual_review_required" in lowered
+        or "polymarket_order_state_uncertain" in lowered
     )
 
 

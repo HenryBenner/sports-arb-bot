@@ -50,6 +50,9 @@ class TradeExecutor:
             opportunity, refresh_message = self._refresh_arb_for_immediate_fill(opportunity)
         except Exception as exc:
             return False, f"live book refresh failed before order submission: {exc}"
+        balance_blocker = self._polymarket_balance_block_reason(opportunity)
+        if balance_blocker:
+            return False, balance_blocker
         return self._submit_arb_orders(opportunity, prefix=refresh_message)
 
     def execute_fast(self, opportunity: ArbOpportunity, workflow: str = "unknown") -> tuple[bool, str]:
@@ -60,6 +63,9 @@ class TradeExecutor:
         readiness = self.ready_for_immediate_execution()
         if readiness:
             return False, readiness
+        balance_blocker = self._polymarket_balance_block_reason(opportunity)
+        if balance_blocker:
+            return False, balance_blocker
         try:
             self._validate_polymarket_minimum_notional(
                 opportunity.buy_yes,
@@ -271,6 +277,22 @@ class TradeExecutor:
             f"({contracts} contracts at {refreshed_level.price_cents}c = ${notional}); "
             f"needs at least {min_contracts} contracts at this price, but no larger "
             "profitable basket fits the configured bet limits"
+        )
+
+    def _polymarket_balance_block_reason(self, opportunity: ArbOpportunity) -> str | None:
+        polymarket_leg = _polymarket_leg(opportunity)
+        if polymarket_leg is None:
+            return None
+        notional = _leg_notional_usd(polymarket_leg)
+        try:
+            available = Decimal(self.polymarket.available_cash_usd())
+        except Exception as exc:
+            return f"polymarket_balance_unavailable before order submission: {exc}"
+        if available >= notional:
+            return None
+        return (
+            "polymarket_balance_insufficient before order submission: "
+            f"available=${_decimal_text(available)} required=${_decimal_text(notional)}"
         )
 
 
@@ -499,6 +521,23 @@ def _execution_order(opportunity: ArbOpportunity):
         return legs
     other_leg = opportunity.buy_no if polymarket_leg is opportunity.buy_yes else opportunity.buy_yes
     return polymarket_leg, other_leg
+
+
+def _polymarket_leg(opportunity: ArbOpportunity) -> ArbLeg | None:
+    return next(
+        (
+            leg
+            for leg in (opportunity.buy_yes, opportunity.buy_no)
+            if leg.exchange is Exchange.POLYMARKET
+        ),
+        None,
+    )
+
+
+def _leg_notional_usd(leg: ArbLeg) -> Decimal:
+    return (Decimal(leg.price_cents) * Decimal(leg.size) / Decimal("100")).quantize(
+        Decimal("0.0001")
+    )
 
 
 def _polymarket_confirmation_timeout_seconds(event_type: str | None) -> float:
