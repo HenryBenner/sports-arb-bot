@@ -528,7 +528,6 @@ class HotArbRunner:
         self._kalshi_market_cache: dict[str, dict] = {}
         self.used_contract_ids: set[str] = self._load_used_contract_ids()
         self.pair_spend_state = self._load_pair_spend_state()
-        self._live_halt_reason: str | None = None
         self._printed_expiring_candidate_keys: set[str] = set()
         self._printed_expiring_blocked_keys: set[str] = set()
         self._printed_expiring_watch_keys: set[str] = set()
@@ -577,11 +576,6 @@ class HotArbRunner:
         consecutive_poll_errors = 0
         last_heartbeat_at = self.clock()
         while True:
-            if execute and self._live_halt_reason:
-                print(f"live trading halted: {_short_reason(self._live_halt_reason)}")
-                for task in active_tasks.values():
-                    task.cancel()
-                return
             try:
                 opportunities = await asyncio.to_thread(
                     self.predictionhunt.get_arbitrage_opportunities,
@@ -685,11 +679,6 @@ class HotArbRunner:
             done_keys = [key for key, task in active_tasks.items() if task.done()]
             for key in done_keys:
                 del active_tasks[key]
-            if execute and self._live_halt_reason:
-                print(f"live trading halted: {_short_reason(self._live_halt_reason)}")
-                for task in active_tasks.values():
-                    task.cancel()
-                return
             last_heartbeat_at = self._print_heartbeat_if_due(
                 last_heartbeat_at,
                 manager,
@@ -815,8 +804,6 @@ class HotArbRunner:
         ]
         try:
             async for book in merge_streams(streams, watch.expires_at, self.clock):
-                if execute and self._live_halt_reason:
-                    return
                 now = self.clock()
                 watch.books[(book.exchange, book.market_id, book.side)] = _book_with_timestamp(book, now)
                 evaluation = engine.evaluate(watch, now)
@@ -848,7 +835,7 @@ class HotArbRunner:
                         not submitted
                         and (
                             _may_have_live_exposure(message)
-                            or _requires_live_halt(message)
+                            or _requires_watch_quarantine(message)
                             or _incremental_budget_exhausted(message)
                         )
                     )
@@ -885,8 +872,6 @@ class HotArbRunner:
                         )
                     if execute and _may_have_live_exposure(message) and not submitted:
                         self._mark_contracts_used(watch.opportunity)
-                    if execute and not submitted and _requires_live_halt(message):
-                        self._live_halt_reason = message
                     watch.triggered = True
                     if execute and submitted:
                         if self._remaining_budget_cannot_fit_exchange_minimum(watch):
@@ -899,7 +884,14 @@ class HotArbRunner:
                     if not submitted and _cross_50_blocked(message):
                         watch.disabled = True
                         return
-                    if execute and not _requires_live_halt(message):
+                    if execute and _requires_watch_quarantine(message):
+                        watch.disabled = True
+                        print(
+                            f"market watch quarantined: {evaluation.pair_name} "
+                            f"reason={_short_reason(message)}; bot continuing"
+                        )
+                        return
+                    if execute:
                         continue
                     if not execute:
                         self._mark_contracts_used(watch.opportunity)
@@ -1774,7 +1766,7 @@ def _book_ask_levels(book: LiveLegBook) -> list[BookLevel]:
     return [] if book.best_ask is None else [book.best_ask]
 
 
-def _requires_live_halt(message: str) -> bool:
+def _requires_watch_quarantine(message: str) -> bool:
     if _is_polymarket_geoblock_error(message):
         return True
     lowered = str(message or "").lower()

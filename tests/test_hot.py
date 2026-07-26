@@ -25,7 +25,7 @@ from firstbot.hot import (
     _poll_error_summary,
     _poll_retry_seconds,
     _predictionhunt_trusted_outcome_keys,
-    _requires_live_halt,
+    _requires_watch_quarantine,
     parse_datetime,
 )
 from firstbot.models import ArbLeg, ArbOpportunity, BookLevel, Exchange, Side
@@ -359,23 +359,23 @@ class WebSocketParserTests(unittest.TestCase):
 
 
 class HotTriggerTests(unittest.TestCase):
-    def test_live_halt_message_detection(self):
+    def test_watch_quarantine_message_detection(self):
         self.assertTrue(
-            _requires_live_halt(
+            _requires_watch_quarantine(
                 "first leg failed before paired order submission: "
                 "polymarket_order_state_uncertain: delayed Polymarket FOK order "
                 "0xpending was not confirmed filled within 12s"
             )
         )
         self.assertTrue(
-            _requires_live_halt(
+            _requires_watch_quarantine(
                 "second leg failed after first leg polymarket response=...; "
                 "manual_review_required: kalshi rejected FOK"
             )
         )
-        self.assertFalse(_requires_live_halt("order could not be fully filled; FOK killed"))
+        self.assertFalse(_requires_watch_quarantine("order could not be fully filled; FOK killed"))
         self.assertTrue(
-            _requires_live_halt(
+            _requires_watch_quarantine(
                 "PolyApiException status_code=403: Trading restricted in your region"
             )
         )
@@ -2487,6 +2487,71 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(engine.calls, 1)
             self.assertEqual(len(trigger_lines), 1)
             self.assertTrue(watch.disabled)
+
+    async def test_uncertain_order_quarantines_only_watch_and_bot_continues(self):
+        class FakeKalshiClient:
+            base_url = "https://example.test"
+
+        class FakePolymarketClient:
+            clob_url = "https://example.test"
+
+        class UncertainEngine:
+            near_miss_cost_cents = 100
+            last_execution_opportunity = None
+
+            def evaluate(self, watch, now):
+                return verified_arb()
+
+            def execute_if_allowed(self, opportunity, execute, **kwargs):
+                return (
+                    False,
+                    "first leg failed before paired order submission: "
+                    "polymarket_order_state_uncertain: delayed Polymarket FOK order "
+                    "0xpending was not confirmed",
+                )
+
+        async def one_update(streams, expires_at, clock):
+            yield LiveLegBook(
+                Exchange.POLYMARKET,
+                "poly-1",
+                Side.YES,
+                BookLevel(40, Decimal("20")),
+                NOW,
+                True,
+                True,
+                min_order_size=Decimal("3"),
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            runner = HotArbRunner(
+                None,
+                FakeKalshiClient(),
+                FakePolymarketClient(),
+                settings(live=True),
+                log_dir=tmp,
+                clock=lambda: NOW,
+            )
+            watch = HotWatchManager(600, 3, 20, True, clock=lambda: NOW).add_or_refresh(
+                ph_opportunity(yes_price="0.40", no_price="0.55"),
+                ph_outcome_keys(),
+            )[0]
+            assert watch is not None
+
+            from firstbot import hot
+
+            original_merge_streams = hot.merge_streams
+            hot.merge_streams = one_update
+            try:
+                with redirect_stdout(StringIO()) as stdout:
+                    await runner._watch_market(watch, UncertainEngine(), execute=True)
+            finally:
+                hot.merge_streams = original_merge_streams
+
+            self.assertTrue(watch.disabled)
+            self.assertTrue(runner._uses_previously_triggered_contract(watch.opportunity))
+            self.assertIn("market watch quarantined", stdout.getvalue())
+            self.assertIn("bot continuing", stdout.getvalue())
+            self.assertFalse(hasattr(runner, "_live_halt_reason"))
 
     def test_used_contract_guard_blocks_future_candidates_with_either_leg(self):
         runner = HotArbRunner(None, None, None, settings(), clock=lambda: NOW)
