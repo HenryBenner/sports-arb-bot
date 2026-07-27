@@ -13,6 +13,9 @@ from .models import ArbLeg
 from .models import OrderBook
 
 
+POLYMARKET_MIN_MARKETABLE_BUY_USD = Decimal("1")
+
+
 @dataclass(frozen=True)
 class ProfitableFill:
     contracts: Decimal
@@ -324,7 +327,9 @@ class TradeExecutor:
             self.max_leg_usd,
             remaining_leg_usd,
         )
-        polymarket_min_order_size = self._polymarket_minimum_contracts(opportunity)
+        polymarket_min_order_size = self._polymarket_published_minimum_contracts(
+            opportunity
+        )
         fill = _smallest_profitable_equal_fill(
             opportunity.buy_yes,
             opportunity.buy_no,
@@ -360,24 +365,34 @@ class TradeExecutor:
                     f"contracts (remaining Kalshi=${_decimal_text(leg_budgets[Exchange.KALSHI])}, "
                     f"Polymarket=${_decimal_text(leg_budgets[Exchange.POLYMARKET])})"
                 )
-            if contracts_cap < polymarket_min_order_size:
+            polymarket_leg = _polymarket_leg(opportunity)
+            polymarket_levels = (
+                yes_levels
+                if polymarket_leg is opportunity.buy_yes
+                else no_levels
+            )
+            best_polymarket_level = polymarket_levels[0] if polymarket_levels else None
+            required_minimum = (
+                _polymarket_marketable_buy_minimum_contracts(
+                    polymarket_min_order_size,
+                    best_polymarket_level.price_cents,
+                )
+                if best_polymarket_level is not None
+                else polymarket_min_order_size
+            )
+            if contracts_cap < required_minimum:
                 raise RuntimeError(
                     "polymarket_min_order_size: live equal depth cannot fit "
-                    f"Polymarket minimum of {polymarket_min_order_size} shares"
+                    f"Polymarket marketable BUY minimum of {required_minimum} shares "
+                    f"at {best_polymarket_level.price_cents}c "
+                    f"(published share minimum={polymarket_min_order_size}, "
+                    f"minimum notional=${POLYMARKET_MIN_MARKETABLE_BUY_USD})"
                 )
             raise RuntimeError(
                 "refreshed basket is no longer profitable: no exchange-valid profitable "
                 "equal batch "
                 f"(best YES={_level_text(best_yes)}, best NO={_level_text(best_no)})"
             )
-        self._validate_polymarket_minimum_order_size(
-            opportunity.buy_yes,
-            fill.contracts,
-        )
-        self._validate_polymarket_minimum_order_size(
-            opportunity.buy_no,
-            fill.contracts,
-        )
         buy_yes = replace(
             opportunity.buy_yes,
             price_cents=fill.yes_limit_cents,
@@ -391,6 +406,14 @@ class TradeExecutor:
             size=fill.contracts,
             avg_price_cents=fill.no_avg_cents,
             fee_price_levels=fill.no_fee_price_levels,
+        )
+        self._validate_polymarket_minimum_order_size(
+            buy_yes,
+            fill.contracts,
+        )
+        self._validate_polymarket_minimum_order_size(
+            buy_no,
+            fill.contracts,
         )
         refreshed = replace(
             opportunity,
@@ -482,8 +505,9 @@ class TradeExecutor:
         if contracts >= minimum_contracts:
             return
         raise RuntimeError(
-            "polymarket_min_order_size: Polymarket order is below the live book minimum "
-            f"({contracts} shares requested; minimum={minimum_contracts})"
+            "polymarket_min_order_size: Polymarket marketable BUY is below the "
+            f"exchange-valid minimum ({contracts} shares requested; "
+            f"minimum={minimum_contracts} at {leg.price_cents}c)"
         )
 
     def _polymarket_minimum_contracts(self, opportunity: ArbOpportunity) -> Decimal:
@@ -492,20 +516,33 @@ class TradeExecutor:
             return Decimal("1")
         return self._polymarket_minimum_contracts_for_leg(leg)
 
+    def _polymarket_published_minimum_contracts(
+        self,
+        opportunity: ArbOpportunity,
+    ) -> Decimal:
+        leg = _polymarket_leg(opportunity)
+        if leg is None:
+            return Decimal("1")
+        return self._polymarket_published_minimum_contracts_for_leg(leg)
+
     def _polymarket_minimum_contracts_for_leg(self, leg: ArbLeg) -> Decimal:
+        published_minimum = self._polymarket_published_minimum_contracts_for_leg(leg)
+        return _polymarket_marketable_buy_minimum_contracts(
+            published_minimum,
+            leg.price_cents,
+        )
+
+    def _polymarket_published_minimum_contracts_for_leg(
+        self,
+        leg: ArbLeg,
+    ) -> Decimal:
         if hasattr(self.polymarket, "get_token_min_order_size"):
             minimum = Decimal(self.polymarket.get_token_min_order_size(leg.market_id))
             return max(
                 Decimal("1"),
                 minimum.to_integral_value(rounding=ROUND_CEILING),
             )
-        # Legacy and test clients do not expose book constraints.
-        return max(
-            Decimal("1"),
-            (Decimal("100") / Decimal(leg.price_cents)).to_integral_value(
-                rounding=ROUND_CEILING
-            ),
-        )
+        return Decimal("1")
 
     def _polymarket_balance_block_reason(self, opportunity: ArbOpportunity) -> str | None:
         polymarket_leg = _polymarket_leg(opportunity)
@@ -650,10 +687,16 @@ def _smallest_profitable_equal_fill(
         gross_avg = yes_avg + no_avg
         net = Decimal("100") - gross_avg - buffers
 
-        if net > 0 and candidate_contracts >= max(
-            Decimal("1"),
-            Decimal(polymarket_min_order_size).to_integral_value(rounding=ROUND_CEILING),
-        ):
+        polymarket_candidate = (
+            candidate_yes_leg
+            if candidate_yes_leg.exchange is Exchange.POLYMARKET
+            else candidate_no_leg
+        )
+        candidate_minimum = _polymarket_marketable_buy_minimum_contracts(
+            polymarket_min_order_size,
+            polymarket_candidate.price_cents,
+        )
+        if net > 0 and candidate_contracts >= candidate_minimum:
             return ProfitableFill(
                 contracts=candidate_contracts,
                 yes_limit_cents=yes_price,
@@ -699,6 +742,26 @@ def _leg_budgets(
         )
         budgets[exchange] = max(Decimal("0"), min(Decimal(max_leg_usd), remaining))
     return budgets
+
+
+def _polymarket_marketable_buy_minimum_contracts(
+    published_minimum_shares: Decimal,
+    price_cents: int,
+) -> Decimal:
+    if price_cents <= 0:
+        raise RuntimeError(
+            "polymarket_min_order_size: marketable BUY limit must be above 0c"
+        )
+    notional_minimum = (
+        POLYMARKET_MIN_MARKETABLE_BUY_USD
+        * Decimal("100")
+        / Decimal(price_cents)
+    ).to_integral_value(rounding=ROUND_CEILING)
+    return max(
+        Decimal("1"),
+        Decimal(published_minimum_shares).to_integral_value(rounding=ROUND_CEILING),
+        notional_minimum,
+    )
 
 
 def _cross_50_block_reason(first_leg: ArbLeg, second_leg: ArbLeg) -> str | None:

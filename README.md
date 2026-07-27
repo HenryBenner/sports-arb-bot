@@ -197,6 +197,11 @@ leg after the other venue has already filled. `KALSHI_FEE_RATE` and
 `POLYMARKET_FEE_RATE` remain fallback inputs for older paper/manual paths;
 hot live execution uses the venue metadata above.
 
+The smallest equal FOK batch also satisfies both Polymarket constraints: the
+book's published minimum share count and the `$1` minimum marketable-BUY
+notional at the final submitted limit price. For example, a `5c` limit with a
+one-share book minimum requires at least `20` equal contracts on both venues.
+
 Near misses are logged separately to `logs/hot_near_misses.jsonl`. By default,
 that means fresh live baskets that did not clear positive net profit but are at
 or below `100c`. You can change it with:

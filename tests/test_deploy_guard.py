@@ -637,6 +637,56 @@ class DeployGuardTests(unittest.TestCase):
         self.assertEqual(polymarket.orders[0]["size"], Decimal("5"))
         self.assertEqual(kalshi.orders[0]["count"], 5)
 
+    def test_executor_enforces_one_dollar_polymarket_marketable_buy_minimum(self):
+        kalshi = LadderKalshi([BookLevel(94, Decimal("25"))])
+        polymarket = LadderPolymarket([BookLevel(5, Decimal("25"))])
+        opportunity = ArbOpportunity(
+            pair_name="One Dollar Minimum",
+            buy_yes=ArbLeg(Exchange.KALSHI, "K", Side.YES, 94, Decimal("25")),
+            buy_no=ArbLeg(Exchange.POLYMARKET, "P", Side.NO, 5, Decimal("25")),
+            gross_cost_cents=99,
+            buffers_cents=Decimal("0"),
+            net_profit_cents=Decimal("1"),
+            executable=True,
+            blockers=(),
+        )
+        executor = TradeExecutor(kalshi, polymarket, max_leg_usd=Decimal("20"))
+
+        submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
+
+        self.assertTrue(submitted)
+        self.assertIn("smallest equal FOK size=20", message)
+        self.assertEqual(polymarket.orders[0]["size"], Decimal("20"))
+        self.assertEqual(kalshi.orders[0]["count"], 20)
+
+    def test_polymarket_notional_minimum_uses_final_fok_limit_price(self):
+        kalshi = LadderKalshi([BookLevel(85, Decimal("20"))])
+        polymarket = LadderPolymarket(
+            [
+                BookLevel(5, Decimal("10")),
+                BookLevel(10, Decimal("10")),
+            ]
+        )
+        opportunity = ArbOpportunity(
+            pair_name="Dynamic Dollar Minimum",
+            buy_yes=ArbLeg(Exchange.KALSHI, "K", Side.YES, 85, Decimal("20")),
+            buy_no=ArbLeg(Exchange.POLYMARKET, "P", Side.NO, 5, Decimal("20")),
+            gross_cost_cents=90,
+            buffers_cents=Decimal("0"),
+            net_profit_cents=Decimal("10"),
+            executable=True,
+            blockers=(),
+        )
+        executor = TradeExecutor(kalshi, polymarket, max_leg_usd=Decimal("10"))
+
+        submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
+
+        self.assertTrue(submitted, message)
+        self.assertIn("smallest equal FOK size=11", message)
+        self.assertIn("NO=polymarket:limit=10c", message)
+        self.assertEqual(polymarket.orders[0]["size"], Decimal("11"))
+        self.assertEqual(kalshi.orders[0]["count"], 11)
+
     def test_executor_checks_larger_equal_batches_when_fee_rounding_hurts_one_contract(self):
         class ConstrainedPolymarket(LadderPolymarket):
             def get_token_min_order_size(self, token_id):
