@@ -181,13 +181,21 @@ to `logs/hot_live_trades.jsonl`, and candidate/watch lifecycle records to
 trade the PredictionHunt EV feed.
 
 Hot mode triggers only when the live WebSocket basket has positive net profit
-after calculated exchange fees and any extra configured buffers. Kalshi fees
-use `C * KALSHI_FEE_RATE * p * (1 - p)` with `KALSHI_FEE_RATE=0.07` by
-default. Polymarket fees use `C * POLYMARKET_FEE_RATE * p * (1 - p)`, so set
-`POLYMARKET_FEE_RATE` to the coefficient for the market/category you are
-trading; the default is `0.05`. Kalshi total fees are rounded up to the cent;
-Polymarket total fees are rounded up to the mill. `BOT_FEE_BUFFER_CENTS` is
-now only an extra safety cushion, not the main fee model.
+after venue-specific taker fees and any extra configured buffers. For each
+exact Kalshi leg, the bot reads the market fee waiver, event fee overrides,
+and series `fee_type`/`fee_multiplier`, then applies Kalshi's current taker
+formula and centicent rounding. For each exact Polymarket token, it resolves
+the condition ID and reads the CLOB V2 `fd` rate/exponent, including fee-free
+markets, then rounds the fee to five decimal places. Missing or unsupported
+live fee metadata blocks the candidate instead of using a category guess.
+
+Hot live orders are FOK limit orders sized from executable depth, so
+`BOT_SLIPPAGE_CENTS=0` and `BOT_FEE_BUFFER_CENTS=0` are the normal settings.
+An order-book race can still make a FOK fail, but it cannot fill above its
+limit. `HOT_HEDGE_MAX_CHASE_CENTS` is a separate cap for completing a missing
+leg after the other venue has already filled. `KALSHI_FEE_RATE` and
+`POLYMARKET_FEE_RATE` remain fallback inputs for older paper/manual paths;
+hot live execution uses the venue metadata above.
 
 Near misses are logged separately to `logs/hot_near_misses.jsonl`. By default,
 that means fresh live baskets that did not clear positive net profit but are at

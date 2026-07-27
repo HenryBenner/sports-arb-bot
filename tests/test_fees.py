@@ -3,7 +3,7 @@ import unittest
 
 from firstbot.config import Settings
 from firstbot.fees import leg_fee_cents_per_contract, total_fee_cents_per_contract
-from firstbot.models import ArbLeg, Exchange, Side
+from firstbot.models import ArbLeg, BookLevel, Exchange, FeeSchedule, Side
 
 
 def settings(kalshi_rate: str = "0.07", polymarket_rate: str = "0.05") -> Settings:
@@ -47,6 +47,135 @@ def settings(kalshi_rate: str = "0.07", polymarket_rate: str = "0.05") -> Settin
 
 
 class FeeFormulaTests(unittest.TestCase):
+    def test_live_kalshi_schedule_uses_multiplier_and_centicent_rounding(self):
+        fee = leg_fee_cents_per_contract(
+            ArbLeg(
+                Exchange.KALSHI,
+                "K",
+                Side.YES,
+                50,
+                Decimal("1"),
+                fee_schedule=FeeSchedule(
+                    exchange=Exchange.KALSHI,
+                    fee_type="quadratic",
+                    rate=Decimal("0.07"),
+                    multiplier=Decimal("0.5"),
+                    source="kalshi series K",
+                ),
+            ),
+            settings(kalshi_rate="0.99"),
+        )
+
+        self.assertEqual(fee, Decimal("0.8800"))
+
+    def test_live_polymarket_schedule_uses_market_rate_exponent_and_five_decimals(self):
+        fee = leg_fee_cents_per_contract(
+            ArbLeg(
+                Exchange.POLYMARKET,
+                "P",
+                Side.NO,
+                50,
+                Decimal("10"),
+                fee_schedule=FeeSchedule(
+                    exchange=Exchange.POLYMARKET,
+                    fee_type="polymarket_curve",
+                    rate=Decimal("0.05"),
+                    exponent=Decimal("2"),
+                    source="polymarket clob market C",
+                ),
+            ),
+            settings(polymarket_rate="0.99"),
+        )
+
+        self.assertEqual(fee, Decimal("0.31250"))
+
+    def test_live_polymarket_fee_is_summed_at_each_actual_fill_price(self):
+        fee = leg_fee_cents_per_contract(
+            ArbLeg(
+                Exchange.POLYMARKET,
+                "P",
+                Side.YES,
+                80,
+                Decimal("2"),
+                avg_price_cents=Decimal("50"),
+                fee_schedule=FeeSchedule(
+                    exchange=Exchange.POLYMARKET,
+                    fee_type="polymarket_curve",
+                    rate=Decimal("0.05"),
+                    exponent=Decimal("1"),
+                ),
+                fee_price_levels=(
+                    BookLevel(20, Decimal("1")),
+                    BookLevel(80, Decimal("1")),
+                ),
+            ),
+            settings(polymarket_rate="0.99"),
+        )
+
+        self.assertEqual(fee, Decimal("0.800"))
+
+    def test_live_kalshi_fee_is_summed_at_each_actual_fill_price(self):
+        fee = leg_fee_cents_per_contract(
+            ArbLeg(
+                Exchange.KALSHI,
+                "K",
+                Side.YES,
+                80,
+                Decimal("2"),
+                avg_price_cents=Decimal("50"),
+                fee_schedule=FeeSchedule(
+                    exchange=Exchange.KALSHI,
+                    fee_type="quadratic",
+                    rate=Decimal("0.07"),
+                ),
+                fee_price_levels=(
+                    BookLevel(20, Decimal("1")),
+                    BookLevel(80, Decimal("1")),
+                ),
+            ),
+            settings(kalshi_rate="0.99"),
+        )
+
+        self.assertEqual(fee, Decimal("1.1200"))
+
+    def test_live_fee_free_schedule_charges_zero(self):
+        fee = leg_fee_cents_per_contract(
+            ArbLeg(
+                Exchange.POLYMARKET,
+                "P",
+                Side.YES,
+                50,
+                Decimal("1"),
+                fee_schedule=FeeSchedule(
+                    exchange=Exchange.POLYMARKET,
+                    fee_type="polymarket_curve",
+                    rate=Decimal("0"),
+                    exponent=Decimal("0"),
+                ),
+            ),
+            settings(polymarket_rate="0.99"),
+        )
+
+        self.assertEqual(fee, Decimal("0"))
+
+    def test_unknown_live_kalshi_fee_type_is_not_generalized(self):
+        with self.assertRaisesRegex(ValueError, "unsupported live Kalshi fee type"):
+            leg_fee_cents_per_contract(
+                ArbLeg(
+                    Exchange.KALSHI,
+                    "K",
+                    Side.YES,
+                    50,
+                    Decimal("1"),
+                    fee_schedule=FeeSchedule(
+                        exchange=Exchange.KALSHI,
+                        fee_type="flat",
+                        rate=Decimal("0.07"),
+                    ),
+                ),
+                settings(),
+            )
+
     def test_kalshi_taker_fee_matches_parabolic_formula_and_rounding(self):
         fee = leg_fee_cents_per_contract(
             ArbLeg(Exchange.KALSHI, "K", Side.YES, 60, Decimal("100")),

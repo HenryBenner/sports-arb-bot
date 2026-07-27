@@ -20,7 +20,7 @@ from .executor import (
 from .fees import total_cost_adjustment_cents
 from .exchanges import KalshiClient, PolymarketClient
 from .matching import MarketMatchingEngine
-from .models import ArbLeg, ArbOpportunity, BookLevel, Exchange, Side
+from .models import ArbLeg, ArbOpportunity, BookLevel, Exchange, FeeSchedule, Side
 from .predictionhunt import PredictionHuntClient, PredictionHuntLeg, PredictionHuntOpportunity
 from .readiness import preflight_hot_candidate
 
@@ -87,6 +87,7 @@ class HotWatch:
     allowed_pairs: set[
         tuple[tuple[Exchange, str, Side], tuple[Exchange, str, Side]]
     ] = field(default_factory=set)
+    fee_schedules: dict[tuple[Exchange, str, Side], FeeSchedule] = field(default_factory=dict)
     triggered: bool = False
     books: dict[tuple[Exchange, str, Side], LiveLegBook] | None = None
     near_misses_logged: set[int] = field(default_factory=set)
@@ -108,6 +109,7 @@ class HotWatch:
         allowed_pairs: set[
             tuple[tuple[Exchange, str, Side], tuple[Exchange, str, Side]]
         ] | None = None,
+        fee_schedules: dict[tuple[Exchange, str, Side], FeeSchedule] | None = None,
     ) -> None:
         self.opportunity = opportunity
         self.expires_at = expires_at
@@ -115,6 +117,8 @@ class HotWatch:
             self.outcome_keys = outcome_keys
         if allowed_pairs is not None:
             self.allowed_pairs = allowed_pairs
+        if fee_schedules is not None:
+            self.fee_schedules = fee_schedules
 
 
 class HotWatchManager:
@@ -140,6 +144,7 @@ class HotWatchManager:
         allowed_pairs: set[
             tuple[tuple[Exchange, str, Side], tuple[Exchange, str, Side]]
         ] | None = None,
+        fee_schedules: dict[tuple[Exchange, str, Side], FeeSchedule] | None = None,
     ) -> tuple[HotWatch | None, str]:
         skip_reason = self.skip_reason(opportunity)
         if skip_reason:
@@ -150,7 +155,13 @@ class HotWatchManager:
         key = watch_key(opportunity)
         expires_at = now + timedelta(seconds=self.hot_window_seconds)
         if key in self.watches:
-            self.watches[key].refresh(opportunity, expires_at, outcome_keys, allowed_pairs)
+            self.watches[key].refresh(
+                opportunity,
+                expires_at,
+                outcome_keys,
+                allowed_pairs,
+                fee_schedules,
+            )
             return self.watches[key], "refreshed"
         watch = HotWatch(
             key=key,
@@ -159,6 +170,7 @@ class HotWatchManager:
             event_date=event_date,
             outcome_keys=outcome_keys or {},
             allowed_pairs=allowed_pairs or set(),
+            fee_schedules=fee_schedules or {},
         )
         self.watches[key] = watch
         self._evict_if_needed()
@@ -249,6 +261,9 @@ class HotTriggerEngine:
                         )
                     ),
                     source_price_cents=_predictionhunt_price_cents(ph_leg.price),
+                    fee_schedule=watch.fee_schedules.get(
+                        (ph_leg.platform, ph_leg.market_id, ph_leg.side)
+                    ),
                 )
             )
         if len(legs) < 2:
@@ -465,12 +480,14 @@ class HotTriggerEngine:
             price_cents=fill.yes_limit_cents,
             size=fill.contracts,
             avg_price_cents=fill.yes_avg_cents,
+            fee_price_levels=fill.yes_fee_price_levels,
         )
         buy_no = replace(
             opportunity.buy_no,
             price_cents=fill.no_limit_cents,
             size=fill.contracts,
             avg_price_cents=fill.no_avg_cents,
+            fee_price_levels=fill.no_fee_price_levels,
         )
         if self.settings.hot_require_cross_50:
             cross_50_blocker = _cross_50_block_reason(buy_yes, buy_no)
@@ -649,6 +666,7 @@ class HotArbRunner:
                         if venue_blocker:
                             self._log_candidate(opportunity, "skipped", venue_blocker)
                             continue
+                    fee_schedules = await self._hot_fee_schedules(opportunity)
                 except Exception as exc:
                     self._log_candidate(opportunity, "skipped", f"candidate safety check failed: {exc}")
                     continue
@@ -661,7 +679,12 @@ class HotArbRunner:
                     if preflight_blocker:
                         self._log_candidate(opportunity, "preflight_failed", preflight_blocker)
                         continue
-                watch, status = manager.add_or_refresh(opportunity, outcome_keys, allowed_pairs)
+                watch, status = manager.add_or_refresh(
+                    opportunity,
+                    outcome_keys,
+                    allowed_pairs,
+                    fee_schedules,
+                )
                 if watch is None:
                     self._log_candidate(opportunity, "skipped", status)
                     continue
@@ -966,6 +989,32 @@ class HotArbRunner:
         if tuple(legs) == opportunity.legs:
             return opportunity
         return replace(opportunity, legs=tuple(legs))
+
+    async def _hot_fee_schedules(
+        self,
+        opportunity: PredictionHuntOpportunity,
+    ) -> dict[tuple[Exchange, str, Side], FeeSchedule]:
+        requests = []
+        for leg in opportunity.legs:
+            client = self.kalshi if leg.platform is Exchange.KALSHI else self.polymarket
+            if not isinstance(client, (KalshiClient, PolymarketClient)):
+                continue
+            requests.append(
+                (
+                    leg,
+                    asyncio.to_thread(client.get_taker_fee_schedule, leg.market_id),
+                )
+            )
+        if not requests:
+            return {}
+        schedules = await asyncio.gather(*(request for _leg, request in requests))
+        result = {
+            (leg.platform, leg.market_id, leg.side): schedule
+            for (leg, _request), schedule in zip(requests, schedules)
+        }
+        if len(result) != len(opportunity.legs):
+            raise RuntimeError("live venue fee lookup did not cover every exact leg")
+        return result
 
     def _hot_allowed_pair_keys(
         self,
@@ -1935,7 +1984,7 @@ def _decimal_str(value: Decimal) -> str:
 
 
 def _arb_leg_record(leg: ArbLeg) -> dict:
-    return {
+    record = {
         "exchange": leg.exchange.value,
         "market_id": leg.market_id,
         "side": leg.side.value,
@@ -1943,3 +1992,17 @@ def _arb_leg_record(leg: ArbLeg) -> dict:
         "avg_price_cents": None if leg.avg_price_cents is None else _decimal_str(leg.avg_price_cents),
         "size": str(leg.size),
     }
+    if leg.fee_schedule is not None:
+        record["fee_schedule"] = {
+            "fee_type": leg.fee_schedule.fee_type,
+            "rate": str(leg.fee_schedule.rate),
+            "multiplier": str(leg.fee_schedule.multiplier),
+            "exponent": str(leg.fee_schedule.exponent),
+            "source": leg.fee_schedule.source,
+        }
+    if leg.fee_price_levels:
+        record["fee_price_levels"] = [
+            {"price_cents": level.price_cents, "size": str(level.size)}
+            for level in leg.fee_price_levels
+        ]
+    return record

@@ -23,6 +23,8 @@ class ProfitableFill:
     gross_avg_cents: Decimal
     buffers_cents: Decimal
     net_profit_cents: Decimal
+    yes_fee_price_levels: tuple[BookLevel, ...] = ()
+    no_fee_price_levels: tuple[BookLevel, ...] = ()
 
 
 class TradeExecutor:
@@ -381,12 +383,14 @@ class TradeExecutor:
             price_cents=fill.yes_limit_cents,
             size=fill.contracts,
             avg_price_cents=fill.yes_avg_cents,
+            fee_price_levels=fill.yes_fee_price_levels,
         )
         buy_no = replace(
             opportunity.buy_no,
             price_cents=fill.no_limit_cents,
             size=fill.contracts,
             avg_price_cents=fill.no_avg_cents,
+            fee_price_levels=fill.no_fee_price_levels,
         )
         refreshed = replace(
             opportunity,
@@ -600,6 +604,8 @@ def _smallest_profitable_equal_fill(
     contracts = Decimal("0")
     yes_total_cents = Decimal("0")
     no_total_cents = Decimal("0")
+    yes_fee_price_levels: list[BookLevel] = []
+    no_fee_price_levels: list[BookLevel] = []
     yes_budget_cents = leg_budgets_usd.get(yes_leg.exchange, Decimal("0")) * Decimal("100")
     no_budget_cents = leg_budgets_usd.get(no_leg.exchange, Decimal("0")) * Decimal("100")
 
@@ -614,17 +620,27 @@ def _smallest_profitable_equal_fill(
 
         yes_avg = candidate_yes_total / candidate_contracts
         no_avg = candidate_no_total / candidate_contracts
+        candidate_yes_fee_levels = _fee_levels_with_contract(
+            yes_fee_price_levels,
+            yes_price,
+        )
+        candidate_no_fee_levels = _fee_levels_with_contract(
+            no_fee_price_levels,
+            no_price,
+        )
         candidate_yes_leg = replace(
             yes_leg,
             price_cents=yes_price,
             size=candidate_contracts,
             avg_price_cents=yes_avg,
+            fee_price_levels=candidate_yes_fee_levels,
         )
         candidate_no_leg = replace(
             no_leg,
             price_cents=no_price,
             size=candidate_contracts,
             avg_price_cents=no_avg,
+            fee_price_levels=candidate_no_fee_levels,
         )
         buffers = (
             total_cost_adjustment_cents((candidate_yes_leg, candidate_no_leg), settings)
@@ -647,11 +663,15 @@ def _smallest_profitable_equal_fill(
                 gross_avg_cents=gross_avg,
                 buffers_cents=buffers,
                 net_profit_cents=net,
+                yes_fee_price_levels=candidate_yes_fee_levels,
+                no_fee_price_levels=candidate_no_fee_levels,
             )
 
         contracts = candidate_contracts
         yes_total_cents = candidate_yes_total
         no_total_cents = candidate_no_total
+        yes_fee_price_levels = list(candidate_yes_fee_levels)
+        no_fee_price_levels = list(candidate_no_fee_levels)
         yes_remaining -= Decimal("1")
         no_remaining -= Decimal("1")
         if yes_remaining <= 0:
@@ -761,6 +781,18 @@ def _whole_contract_ladder(levels: list[BookLevel]) -> list[tuple[int, Decimal]]
         if size >= Decimal("1"):
             ladder.append((level.price_cents, size))
     return ladder
+
+
+def _fee_levels_with_contract(
+    levels: list[BookLevel],
+    price_cents: int,
+) -> tuple[BookLevel, ...]:
+    if levels and levels[-1].price_cents == price_cents:
+        return (
+            *levels[:-1],
+            BookLevel(price_cents=price_cents, size=levels[-1].size + Decimal("1")),
+        )
+    return (*levels, BookLevel(price_cents=price_cents, size=Decimal("1")))
 
 
 def _weighted_fill_for_size(

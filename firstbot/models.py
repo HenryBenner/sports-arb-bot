@@ -16,6 +16,16 @@ class Side(str, Enum):
 
 
 @dataclass(frozen=True)
+class FeeSchedule:
+    exchange: Exchange
+    fee_type: str
+    rate: Decimal
+    multiplier: Decimal = Decimal("1")
+    exponent: Decimal = Decimal("1")
+    source: str = ""
+
+
+@dataclass(frozen=True)
 class BookLevel:
     price_cents: int
     size: Decimal
@@ -53,6 +63,8 @@ class ArbLeg:
     size: Decimal
     avg_price_cents: Decimal | None = None
     source_price_cents: Decimal | None = None
+    fee_schedule: FeeSchedule | None = None
+    fee_price_levels: tuple[BookLevel, ...] = ()
 
 
 @dataclass(frozen=True)

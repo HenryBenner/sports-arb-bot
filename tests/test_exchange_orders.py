@@ -113,6 +113,100 @@ class FakeV2ClobClient(FakeClobClient):
 
 
 class ExchangeOrderTests(unittest.TestCase):
+    def test_kalshi_reads_event_override_fee_schedule_and_caches_it(self):
+        http = FakeHttp(
+            get_responses=[
+                {"market": {"ticker": "K", "event_ticker": "E"}},
+                {
+                    "event": {
+                        "event_ticker": "E",
+                        "series_ticker": "S",
+                        "fee_type_override": "quadratic",
+                        "fee_multiplier_override": "0.5",
+                    }
+                },
+                {
+                    "series": {
+                        "ticker": "S",
+                        "fee_type": "quadratic",
+                        "fee_multiplier": 1,
+                    }
+                },
+            ]
+        )
+        client = KalshiClient("https://example.test/trade-api/v2", http=http)
+
+        schedule = client.get_taker_fee_schedule("K")
+        cached = client.get_taker_fee_schedule("K")
+
+        self.assertIs(schedule, cached)
+        self.assertEqual(schedule.rate, Decimal("0.07"))
+        self.assertEqual(schedule.multiplier, Decimal("0.5"))
+        self.assertIn("event override E", schedule.source)
+        self.assertEqual(len(http.calls), 3)
+
+    def test_kalshi_active_market_fee_waiver_returns_zero_without_series_lookup(self):
+        http = FakeHttp(
+            get_responses=[
+                {
+                    "market": {
+                        "ticker": "K",
+                        "event_ticker": "E",
+                        "fee_waiver_expiration_time": "2099-01-01T00:00:00Z",
+                    }
+                }
+            ]
+        )
+        client = KalshiClient("https://example.test/trade-api/v2", http=http)
+
+        schedule = client.get_taker_fee_schedule("K")
+
+        self.assertEqual(schedule.rate, Decimal("0"))
+        self.assertEqual(schedule.multiplier, Decimal("0"))
+        self.assertIn("market waiver", schedule.source)
+        self.assertEqual(len(http.calls), 1)
+
+    def test_polymarket_reads_live_clob_fee_details_and_caches_them(self):
+        http = FakeHttp(
+            get_responses=[
+                {"condition_id": "0xcondition"},
+                {"fd": {"r": "0.05", "e": "1", "to": True}},
+            ]
+        )
+        client = PolymarketClient(
+            "https://gamma.example.test",
+            "https://clob.example.test",
+            http=http,
+        )
+
+        schedule = client.get_taker_fee_schedule("token")
+        cached = client.get_taker_fee_schedule("token")
+
+        self.assertIs(schedule, cached)
+        self.assertEqual(schedule.rate, Decimal("0.05"))
+        self.assertEqual(schedule.exponent, Decimal("1"))
+        self.assertIn("0xcondition", schedule.source)
+        self.assertIn("/clob-markets/0xcondition", http.calls[1][0])
+        self.assertEqual(len(http.calls), 2)
+
+    def test_polymarket_missing_fee_details_is_explicitly_fee_free(self):
+        http = FakeHttp(
+            get_responses=[
+                {"condition_id": "0xcondition"},
+                {"fd": None},
+            ]
+        )
+        client = PolymarketClient(
+            "https://gamma.example.test",
+            "https://clob.example.test",
+            http=http,
+        )
+
+        schedule = client.get_taker_fee_schedule("token")
+
+        self.assertEqual(schedule.rate, Decimal("0"))
+        self.assertEqual(schedule.exponent, Decimal("0"))
+
     def test_polymarket_reads_and_caches_book_min_order_size(self):
         http = FakeHttp(
             get_responses=[

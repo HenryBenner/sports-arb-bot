@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 from ..http import HttpClient
-from ..models import BookLevel, Exchange, OrderBook, Side
+from ..models import BookLevel, Exchange, FeeSchedule, OrderBook, Side
 from ..ssl_compat import windows_truststore_context
 
 
@@ -44,6 +44,7 @@ class PolymarketClient:
         self.http = http or HttpClient()
         self._trading_client: Any | None = None
         self._token_min_order_sizes: dict[str, Decimal] = {}
+        self._token_fee_schedules: dict[str, tuple[float, FeeSchedule]] = {}
 
     def get_events(self, **params: Any) -> Any:
         return self.http.get_json(f"{self.gamma_url}/events", params=params)
@@ -53,6 +54,58 @@ class PolymarketClient:
         if not isinstance(data, dict):
             raise RuntimeError(f"Polymarket token lookup did not return a market: {token_id}")
         return data
+
+    def get_taker_fee_schedule(self, token_id: str) -> FeeSchedule:
+        cached = self._token_fee_schedules.get(token_id)
+        now_monotonic = time.monotonic()
+        if cached is not None and cached[0] > now_monotonic:
+            return cached[1]
+
+        token_market = self.get_market_by_token(token_id)
+        condition_id = str(
+            token_market.get("condition_id")
+            or token_market.get("conditionId")
+            or token_market.get("condition")
+            or token_market.get("market")
+            or ""
+        ).strip()
+        if not condition_id:
+            raise RuntimeError(
+                f"Polymarket token lookup did not include a condition id: {token_id}"
+            )
+        market_info = self.http.get_json(f"{self.clob_url}/clob-markets/{condition_id}")
+        if not isinstance(market_info, dict):
+            raise RuntimeError(
+                f"Polymarket CLOB market info did not return an object: {condition_id}"
+            )
+        fee_details = market_info.get("fd")
+        if fee_details is None:
+            fee_details = {}
+        if not isinstance(fee_details, dict):
+            raise RuntimeError(
+                f"Polymarket CLOB market {condition_id} returned invalid fee details"
+            )
+        rate_raw = fee_details.get("r", 0)
+        try:
+            rate = Decimal(str(rate_raw))
+            exponent = Decimal(str(fee_details.get("e", 0 if rate == 0 else 1)))
+        except Exception as exc:
+            raise RuntimeError(
+                f"Polymarket CLOB market {condition_id} returned invalid fee parameters: {fee_details}"
+            ) from exc
+        if rate < 0 or exponent < 0:
+            raise RuntimeError(
+                f"Polymarket CLOB market {condition_id} returned negative fee parameters: {fee_details}"
+            )
+        schedule = FeeSchedule(
+            exchange=Exchange.POLYMARKET,
+            fee_type="polymarket_curve",
+            rate=rate,
+            exponent=exponent,
+            source=f"polymarket clob market {condition_id}",
+        )
+        self._token_fee_schedules[token_id] = (now_monotonic + 300.0, schedule)
+        return schedule
 
     def get_orderbook(
         self,

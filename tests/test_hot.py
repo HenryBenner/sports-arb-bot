@@ -28,7 +28,7 @@ from firstbot.hot import (
     _requires_watch_quarantine,
     parse_datetime,
 )
-from firstbot.models import ArbLeg, ArbOpportunity, BookLevel, Exchange, Side
+from firstbot.models import ArbLeg, ArbOpportunity, BookLevel, Exchange, FeeSchedule, Side
 from firstbot.predictionhunt import PredictionHuntLeg, PredictionHuntOpportunity
 from firstbot.websockets import _remap_polymarket_token_side, parse_kalshi_message, parse_polymarket_message
 
@@ -1150,6 +1150,56 @@ class HotTriggerTests(unittest.TestCase):
         self.assertEqual(result.gross_cost_cents, 95)
         self.assertEqual(result.buy_yes.exchange, Exchange.POLYMARKET)
         self.assertEqual(result.buy_no.exchange, Exchange.KALSHI)
+
+    def test_hot_trigger_uses_each_exact_legs_live_fee_schedule(self):
+        opportunity = ph_opportunity(
+            event_type="sports",
+            yes_price="0.40",
+            no_price="0.55",
+        )
+        trusted_pairs = {
+            (
+                (Exchange.KALSHI, "KALSHI-1", Side.NO),
+                (Exchange.POLYMARKET, "poly-1", Side.YES),
+            )
+        }
+        watch = HotWatchManager(600, 3, 20, True, clock=lambda: NOW).add_or_refresh(
+            opportunity,
+            outcome_keys=_predictionhunt_trusted_outcome_keys({}, trusted_pairs),
+            allowed_pairs=trusted_pairs,
+            fee_schedules={
+                (Exchange.POLYMARKET, "poly-1", Side.YES): FeeSchedule(
+                    exchange=Exchange.POLYMARKET,
+                    fee_type="polymarket_curve",
+                    rate=Decimal("0.5"),
+                    exponent=Decimal("1"),
+                    source="test market fee",
+                ),
+                (Exchange.KALSHI, "KALSHI-1", Side.NO): FeeSchedule(
+                    exchange=Exchange.KALSHI,
+                    fee_type="quadratic",
+                    rate=Decimal("0"),
+                    multiplier=Decimal("0"),
+                    source="test waiver",
+                ),
+            },
+        )[0]
+        assert watch is not None
+        watch.books = {
+            (Exchange.POLYMARKET, "poly-1", Side.YES): LiveLegBook(
+                Exchange.POLYMARKET, "poly-1", Side.YES, BookLevel(40, Decimal("100")), NOW, True, True
+            ),
+            (Exchange.KALSHI, "KALSHI-1", Side.NO): LiveLegBook(
+                Exchange.KALSHI, "KALSHI-1", Side.NO, BookLevel(55, Decimal("100")), NOW, True, True
+            ),
+        }
+
+        result = HotTriggerEngine(settings(live=True), 99, 100, 1000).evaluate(watch, NOW)
+
+        self.assertFalse(result.executable)
+        self.assertEqual(result.buffers_cents, Decimal("12.00000"))
+        self.assertEqual(result.buy_yes.fee_schedule.source, "test market fee")
+        self.assertEqual(result.buy_no.fee_schedule.source, "test waiver")
 
     def test_predictionhunt_trusted_pair_is_blocked_when_both_prices_are_below_fifty(self):
         opportunity = ph_opportunity(

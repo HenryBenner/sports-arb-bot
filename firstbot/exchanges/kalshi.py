@@ -3,13 +3,14 @@ from __future__ import annotations
 import base64
 import time
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from ..http import HttpClient
-from ..models import BookLevel, Exchange, OrderBook, Side
+from ..models import BookLevel, Exchange, FeeSchedule, OrderBook, Side
 
 
 class KalshiClient:
@@ -26,6 +27,7 @@ class KalshiClient:
         self.private_key_path = private_key_path
         self.private_key = private_key
         self.http = http or HttpClient()
+        self._taker_fee_schedules: dict[str, tuple[float, FeeSchedule]] = {}
 
     def get_markets(self, **params: Any) -> dict[str, Any]:
         return self.http.get_json(f"{self.base_url}/markets", params=params)
@@ -41,6 +43,93 @@ class KalshiClient:
             f"{self.base_url}/events/{event_ticker}",
             params={"with_nested_markets": str(bool(with_nested_markets)).lower()},
         )
+
+    def get_series(self, series_ticker: str) -> dict[str, Any]:
+        raw = self.http.get_json(f"{self.base_url}/series/{series_ticker}")
+        if isinstance(raw, dict) and isinstance(raw.get("series"), dict):
+            return raw["series"]
+        if not isinstance(raw, dict):
+            raise RuntimeError(f"Kalshi series lookup did not return an object: {series_ticker}")
+        return raw
+
+    def get_taker_fee_schedule(self, ticker: str) -> FeeSchedule:
+        cached = self._taker_fee_schedules.get(ticker)
+        now_monotonic = time.monotonic()
+        if cached is not None and cached[0] > now_monotonic:
+            return cached[1]
+
+        market = self.get_market(ticker)
+        waiver_raw = market.get("fee_waiver_expiration_time")
+        waiver_expiration = _parse_utc_datetime(waiver_raw)
+        if waiver_raw not in (None, "") and waiver_expiration is None:
+            raise RuntimeError(
+                f"Kalshi market {ticker} returned invalid fee_waiver_expiration_time={waiver_raw}"
+            )
+        now_utc = datetime.now(timezone.utc)
+        if waiver_expiration is not None and waiver_expiration > now_utc:
+            schedule = FeeSchedule(
+                exchange=Exchange.KALSHI,
+                fee_type="quadratic",
+                rate=Decimal("0"),
+                multiplier=Decimal("0"),
+                source=f"kalshi market waiver through {waiver_expiration.isoformat()}",
+            )
+            ttl = max(1.0, min(300.0, (waiver_expiration - now_utc).total_seconds()))
+            self._taker_fee_schedules[ticker] = (now_monotonic + ttl, schedule)
+            return schedule
+
+        event_ticker = str(market.get("event_ticker") or "").strip()
+        if not event_ticker:
+            raise RuntimeError(f"Kalshi market {ticker} did not include event_ticker")
+        raw_event = self.get_event(event_ticker, with_nested_markets=False)
+        event = raw_event.get("event", raw_event) if isinstance(raw_event, dict) else {}
+        if not isinstance(event, dict):
+            raise RuntimeError(f"Kalshi event lookup did not return an object: {event_ticker}")
+        series_ticker = str(event.get("series_ticker") or "").strip()
+        if not series_ticker:
+            raise RuntimeError(f"Kalshi event {event_ticker} did not include series_ticker")
+        series = self.get_series(series_ticker)
+
+        fee_type_override = event.get("fee_type_override")
+        fee_type = str(
+            fee_type_override
+            if fee_type_override not in (None, "")
+            else series.get("fee_type", "")
+        ).strip().lower()
+        multiplier_override = event.get("fee_multiplier_override")
+        multiplier_raw = (
+            multiplier_override
+            if multiplier_override is not None
+            else series.get("fee_multiplier")
+        )
+        if not fee_type:
+            raise RuntimeError(f"Kalshi series {series_ticker} did not include fee_type")
+        if multiplier_raw is None or str(multiplier_raw).strip() == "":
+            raise RuntimeError(f"Kalshi series {series_ticker} did not include fee_multiplier")
+        try:
+            multiplier = Decimal(str(multiplier_raw))
+        except Exception as exc:
+            raise RuntimeError(
+                f"Kalshi series {series_ticker} returned invalid fee_multiplier={multiplier_raw}"
+            ) from exc
+        if multiplier < 0:
+            raise RuntimeError(
+                f"Kalshi series {series_ticker} returned negative fee_multiplier={multiplier_raw}"
+            )
+
+        schedule = FeeSchedule(
+            exchange=Exchange.KALSHI,
+            fee_type=fee_type,
+            rate=Decimal("0.07"),
+            multiplier=multiplier,
+            source=(
+                f"kalshi event override {event_ticker}"
+                if fee_type_override not in (None, "") or multiplier_override is not None
+                else f"kalshi series {series_ticker}"
+            ),
+        )
+        self._taker_fee_schedules[ticker] = (now_monotonic + 300.0, schedule)
+        return schedule
 
     def get_orderbook(self, ticker: str) -> OrderBook:
         raw = self.http.get_json(f"{self.base_url}/markets/{ticker}/orderbook")
@@ -194,6 +283,19 @@ def _cash_from_balance_response(raw: dict[str, Any]) -> Decimal:
             return amount / Decimal("100")
         return amount
     raise RuntimeError("Kalshi balance response did not include available cash")
+
+
+def _parse_utc_datetime(value: Any) -> datetime | None:
+    if value is None or str(value).strip() == "":
+        return None
+    text = str(value).strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _private_key_bytes_from_env(value: str) -> bytes:
