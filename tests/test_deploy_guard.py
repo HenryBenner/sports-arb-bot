@@ -637,6 +637,43 @@ class DeployGuardTests(unittest.TestCase):
         self.assertEqual(polymarket.orders[0]["size"], Decimal("5"))
         self.assertEqual(kalshi.orders[0]["count"], 5)
 
+    def test_executor_checks_larger_equal_batches_when_fee_rounding_hurts_one_contract(self):
+        class ConstrainedPolymarket(LadderPolymarket):
+            def get_token_min_order_size(self, token_id):
+                return Decimal("10")
+
+        kalshi = LadderKalshi([BookLevel(10, Decimal("20"))])
+        polymarket = ConstrainedPolymarket([BookLevel(88, Decimal("20"))])
+        opportunity = ArbOpportunity(
+            pair_name="Rounded Fees",
+            buy_yes=ArbLeg(Exchange.KALSHI, "K", Side.YES, 10, Decimal("20")),
+            buy_no=ArbLeg(Exchange.POLYMARKET, "P", Side.NO, 88, Decimal("20")),
+            gross_cost_cents=98,
+            buffers_cents=Decimal("1"),
+            net_profit_cents=Decimal("0.08"),
+            executable=True,
+            blockers=(),
+        )
+        executor = TradeExecutor(
+            kalshi,
+            polymarket,
+            max_leg_usd=Decimal("20"),
+            settings=SimpleNamespace(
+                kalshi_fee_rate=Decimal("0.07"),
+                polymarket_fee_rate=Decimal("0.02"),
+                slippage_cents=0,
+                fee_buffer_cents=1,
+                hot_require_cross_50=True,
+            ),
+        )
+
+        submitted, message = executor.execute(opportunity, workflow="run-hot-arb")
+
+        self.assertTrue(submitted)
+        self.assertIn("refreshed smallest equal FOK size=10", message)
+        self.assertEqual(polymarket.orders[0]["size"], Decimal("10"))
+        self.assertEqual(kalshi.orders[0]["count"], 10)
+
     def test_executor_allows_worse_refresh_when_basket_still_profitable(self):
         kalshi = ReadyKalshi()
         kalshi.level = BookLevel(36, Decimal("20"))

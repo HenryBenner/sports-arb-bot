@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 
@@ -61,9 +62,6 @@ class TradeExecutor:
             )
         except Exception as exc:
             return False, f"live book refresh failed before order submission: {exc}"
-        balance_blocker = self._polymarket_balance_block_reason(opportunity)
-        if balance_blocker:
-            return False, balance_blocker
         return self._submit_arb_orders(opportunity, prefix=refresh_message)
 
     def execute_fast(
@@ -87,9 +85,6 @@ class TradeExecutor:
             )
         except Exception as exc:
             return False, f"fast path blocked before order submission: {exc}"
-        balance_blocker = self._polymarket_balance_block_reason(opportunity)
-        if balance_blocker:
-            return False, balance_blocker
         try:
             self._validate_polymarket_minimum_order_size(
                 opportunity.buy_yes,
@@ -120,9 +115,9 @@ class TradeExecutor:
                     False,
                     f"live opposite-price guard failed before order submission: {cross_50_blocker}",
                 )
-        kalshi_blocker = self._kalshi_preflight_block_reason(opportunity)
-        if kalshi_blocker:
-            return False, kalshi_blocker
+        preflight_blocker = self._submission_preflight_block_reason(opportunity)
+        if preflight_blocker:
+            return False, preflight_blocker
         first_leg, second_leg = _execution_order(opportunity)
         first_result = None
         polymarket_confirmation_timeout = _polymarket_confirmation_timeout_seconds(
@@ -314,8 +309,11 @@ class TradeExecutor:
         opportunity: ArbOpportunity,
         remaining_leg_usd: dict[Exchange, Decimal] | None = None,
     ) -> tuple[ArbOpportunity, str]:
-        yes_levels = self._fresh_ask_levels(opportunity.buy_yes)
-        no_levels = self._fresh_ask_levels(opportunity.buy_no)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            yes_future = pool.submit(self._fresh_ask_levels, opportunity.buy_yes)
+            no_future = pool.submit(self._fresh_ask_levels, opportunity.buy_no)
+            yes_levels = yes_future.result()
+            no_levels = no_future.result()
         contracts_cap = min(
             _whole_contracts(sum((level.size for level in yes_levels), Decimal("0"))),
             _whole_contracts(sum((level.size for level in no_levels), Decimal("0"))),
@@ -521,6 +519,23 @@ class TradeExecutor:
             f"available=${_decimal_text(available)} required=${_decimal_text(notional)}"
         )
 
+    def _submission_preflight_block_reason(
+        self,
+        opportunity: ArbOpportunity,
+    ) -> str | None:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            balance_future = pool.submit(
+                self._polymarket_balance_block_reason,
+                opportunity,
+            )
+            kalshi_future = pool.submit(
+                self._kalshi_preflight_block_reason,
+                opportunity,
+            )
+            balance_blocker = balance_future.result()
+            kalshi_blocker = kalshi_future.result()
+        return balance_blocker or kalshi_blocker
+
     def _kalshi_preflight_block_reason(self, opportunity: ArbOpportunity) -> str | None:
         kalshi_leg = _kalshi_leg(opportunity)
         if kalshi_leg is None:
@@ -618,10 +633,8 @@ def _smallest_profitable_equal_fill(
         )
         gross_avg = yes_avg + no_avg
         net = Decimal("100") - gross_avg - buffers
-        if net <= 0:
-            break
 
-        if candidate_contracts >= max(
+        if net > 0 and candidate_contracts >= max(
             Decimal("1"),
             Decimal(polymarket_min_order_size).to_integral_value(rounding=ROUND_CEILING),
         ):
