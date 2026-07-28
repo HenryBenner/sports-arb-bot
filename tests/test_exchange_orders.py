@@ -382,7 +382,12 @@ class ExchangeOrderTests(unittest.TestCase):
                 return {"success": True, "status": "delayed", "orderID": "0xpending"}
 
             def get_order(self, order_id):
-                return {"success": True, "status": "matched", "size_matched": "2", "id": order_id}
+                return {
+                    "success": True,
+                    "status": "ORDER_STATUS_MATCHED",
+                    "size_matched": "2",
+                    "id": order_id,
+                }
 
         FakeClobClient.instances = []
         client = PolymarketClient(
@@ -411,7 +416,7 @@ class ExchangeOrderTests(unittest.TestCase):
         with patch.object(PolymarketClient, "_sdk_types_v2", return_value=fake_types):
             result = client.buy("token", price_cents=45, size=Decimal("2"))
 
-        self.assertEqual(result["status"], "matched")
+        self.assertEqual(result["status"], "ORDER_STATUS_MATCHED")
         self.assertEqual(result["size_matched"], "2")
 
     def test_polymarket_deposit_wallet_confirms_delayed_fill_from_trades_when_order_is_hidden(self):
@@ -423,9 +428,10 @@ class ExchangeOrderTests(unittest.TestCase):
                 return None
 
             def get_trades(self, params=None, only_first_page=False):
+                self.trade_params = params
                 return [
                     {
-                        "status": "CONFIRMED",
+                        "status": "TRADE_STATUS_CONFIRMED",
                         "taker_order_id": "0xpending",
                         "size": "2",
                     }
@@ -462,6 +468,52 @@ class ExchangeOrderTests(unittest.TestCase):
         self.assertEqual(result["status"], "matched")
         self.assertEqual(result["size_matched"], "2")
         self.assertEqual(result["confirmation_source"], "trades")
+        instance = FakeClobClient.instances[0]
+        self.assertNotIn("id", instance.trade_params.kwargs)
+        self.assertIn("after", instance.trade_params.kwargs)
+
+    def test_polymarket_trading_disabled_is_definitive_and_starts_cooldown(self):
+        class TradingDisabledV2ClobClient(FakeV2ClobClient):
+            submit_calls = 0
+
+            def create_and_post_order(self, order_args=None, options=None, order_type=None):
+                type(self).submit_calls += 1
+                raise RuntimeError(
+                    "PolyApiException[status_code=503, "
+                    "error_message={'error': 'trading is disabled'}]"
+                )
+
+        FakeClobClient.instances = []
+        client = PolymarketClient(
+            gamma_url="https://example.test",
+            clob_url="https://clob.example.test",
+            private_key="pk",
+            api_key="api",
+            api_secret="secret",
+            api_passphrase="pass",
+            funder_address="0xdepositwallet",
+            signature_type=3,
+        )
+        fake_types = {
+            "ClobClient": TradingDisabledV2ClobClient,
+            "ApiCreds": FakeApiCreds,
+            "AssetType": FakeAssetType,
+            "BalanceAllowanceParams": FakeBalanceAllowanceParams,
+            "OrderArgs": FakeOrderArgs,
+            "OrderType": FakeOrderType,
+            "PartialCreateOrderOptions": FakePartialCreateOrderOptions,
+            "Side": FakeV2Side,
+            "SignatureTypeV2": FakeSignatureTypeV2,
+            "POLYGON": 137,
+        }
+
+        with patch.object(PolymarketClient, "_sdk_types_v2", return_value=fake_types):
+            with self.assertRaisesRegex(RuntimeError, "polymarket_trading_unavailable"):
+                client.buy("token", price_cents=45, size=Decimal("2"))
+            with self.assertRaisesRegex(RuntimeError, "submission cooling down"):
+                client.buy("token", price_cents=45, size=Decimal("2"))
+
+        self.assertEqual(TradingDisabledV2ClobClient.submit_calls, 1)
 
     def test_polymarket_deposit_wallet_rejects_delayed_without_order_id(self):
         class DelayedNoIdV2ClobClient(FakeV2ClobClient):
@@ -498,7 +550,10 @@ class ExchangeOrderTests(unittest.TestCase):
 
     def test_polymarket_deposit_wallet_times_out_delayed_order(self):
         class DelayedV2ClobClient(FakeV2ClobClient):
+            submit_calls = 0
+
             def create_and_post_order(self, order_args=None, options=None, order_type=None):
+                type(self).submit_calls += 1
                 return {"success": True, "status": "delayed", "orderID": "0xpending"}
 
             def get_order(self, order_id):
@@ -536,6 +591,10 @@ class ExchangeOrderTests(unittest.TestCase):
                     size=Decimal("2"),
                     confirmation_timeout_seconds=0,
                 )
+            with self.assertRaisesRegex(RuntimeError, "polymarket_submission_cooldown"):
+                client.buy("token", price_cents=45, size=Decimal("2"))
+
+        self.assertEqual(DelayedV2ClobClient.submit_calls, 1)
 
     def test_polymarket_resolves_gamma_market_id_to_yes_clob_token(self):
         http = FakeHttp(

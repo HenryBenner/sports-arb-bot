@@ -15,6 +15,7 @@ from ..ssl_compat import windows_truststore_context
 
 POLYMARKET_CONFIRMATION_TIMEOUT_SECONDS = 12.0
 POLYMARKET_CONFIRMATION_POLL_SECONDS = 0.2
+POLYMARKET_TRADING_UNAVAILABLE_COOLDOWN_SECONDS = 30.0
 POLYMARKET_CONFIRMED_STATUSES = {"filled", "matched"}
 POLYMARKET_TRADE_CONFIRMED_STATUSES = {"confirmed", "filled", "matched", "mined"}
 POLYMARKET_TERMINAL_EMPTY_STATUSES = {"canceled", "cancelled", "expired", "failed", "rejected"}
@@ -45,6 +46,8 @@ class PolymarketClient:
         self._trading_client: Any | None = None
         self._token_min_order_sizes: dict[str, Decimal] = {}
         self._token_fee_schedules: dict[str, tuple[float, FeeSchedule]] = {}
+        self._submission_cooldown_until = 0.0
+        self._submission_cooldown_reason = ""
 
     def get_events(self, **params: Any) -> Any:
         return self.http.get_json(f"{self.gamma_url}/events", params=params)
@@ -220,6 +223,7 @@ class PolymarketClient:
     ) -> dict[str, Any]:
         if not fill_or_kill:
             raise RuntimeError("Polymarket live trading requires immediate order behavior")
+        self._ensure_submission_available()
         client, types = self._client_and_types()
         if self.signature_type == 3:
             return self._order_v2(
@@ -245,12 +249,7 @@ class PolymarketClient:
         try:
             result = client.post_order(signed_order, order_type)
         except Exception as exc:
-            if _looks_like_uncertain_post_error(exc):
-                raise RuntimeError(
-                    "polymarket_order_state_uncertain: Polymarket order submission "
-                    f"returned no reliable status: {exc}"
-                ) from exc
-            raise
+            self._raise_classified_post_error(exc)
         return self._confirm_fok_result(
             result,
             expected_size=size,
@@ -269,6 +268,7 @@ class PolymarketClient:
     ) -> dict[str, Any]:
         if not fill_or_kill:
             raise RuntimeError("Polymarket live trading requires immediate order behavior")
+        self._ensure_submission_available()
         client, types = self._client_and_types()
         if self.signature_type == 3:
             return self._order_v2(
@@ -294,12 +294,7 @@ class PolymarketClient:
         try:
             result = client.post_order(signed_order, order_type)
         except Exception as exc:
-            if _looks_like_uncertain_post_error(exc):
-                raise RuntimeError(
-                    "polymarket_order_state_uncertain: Polymarket order submission "
-                    f"returned no reliable status: {exc}"
-                ) from exc
-            raise
+            self._raise_classified_post_error(exc)
         return self._confirm_fok_result(
             result,
             expected_size=size,
@@ -464,12 +459,7 @@ class PolymarketClient:
             except TypeError:
                 result = client.create_and_post_order(order_args, options, order_type)
         except Exception as exc:
-            if _looks_like_uncertain_post_error(exc):
-                raise RuntimeError(
-                    "polymarket_order_state_uncertain: Polymarket order submission "
-                    f"returned no reliable status: {exc}"
-                ) from exc
-            raise
+            self._raise_classified_post_error(exc)
         return self._confirm_fok_result(
             result,
             expected_size=size,
@@ -565,8 +555,7 @@ class PolymarketClient:
                 break
             time.sleep(min(poll_seconds, remaining))
         raise RuntimeError(
-            "polymarket_order_state_uncertain: delayed Polymarket FOK order "
-            f"{order_id} was not confirmed filled within {timeout:g}s: {last_result}"
+            self._delayed_order_timeout_message(order_id, timeout, last_result)
         )
 
     def _try_get_order(self, order_id: str) -> dict[str, Any] | None:
@@ -582,7 +571,7 @@ class PolymarketClient:
             return []
         params_options = []
         try:
-            params_options.append(types["TradeParams"](id=order_id))
+            params_options.append(types["TradeParams"](after=max(0, int(time.time()) - 300)))
         except Exception:
             pass
         try:
@@ -604,6 +593,52 @@ class PolymarketClient:
             if matches:
                 return matches
         return []
+
+    def _ensure_submission_available(self) -> None:
+        remaining = self._submission_cooldown_until - time.monotonic()
+        if remaining <= 0:
+            return
+        raise RuntimeError(
+            "polymarket_submission_cooldown: order submission cooling down for "
+            f"{remaining:.1f}s after {self._submission_cooldown_reason}"
+        )
+
+    def _start_submission_cooldown(self, reason: str) -> None:
+        self._submission_cooldown_until = (
+            time.monotonic() + POLYMARKET_TRADING_UNAVAILABLE_COOLDOWN_SECONDS
+        )
+        self._submission_cooldown_reason = reason
+
+    def _delayed_order_timeout_message(
+        self,
+        order_id: str,
+        timeout: float,
+        last_result: Any,
+    ) -> str:
+        self._start_submission_cooldown(f"unresolved delayed FOK order {order_id}")
+        return (
+            "polymarket_order_state_uncertain: delayed Polymarket FOK order "
+            f"{order_id} was not confirmed filled within {timeout:g}s: {last_result}"
+        )
+
+    def _raise_classified_post_error(self, exc: Exception) -> None:
+        if _looks_like_trading_unavailable_error(exc):
+            self._start_submission_cooldown(_short_exception_text(exc))
+            raise RuntimeError(
+                "polymarket_trading_unavailable: Polymarket rejected the order "
+                f"before acceptance: {exc}"
+            ) from exc
+        if _looks_like_definitive_no_order_error(exc):
+            raise RuntimeError(
+                "polymarket_order_rejected: Polymarket rejected the order before "
+                f"it reached the book: {exc}"
+            ) from exc
+        if _looks_like_uncertain_post_error(exc):
+            raise RuntimeError(
+                "polymarket_order_state_uncertain: Polymarket order submission "
+                f"returned no reliable status: {exc}"
+            ) from exc
+        raise exc
 
     def cancel_order(self, order_id: str) -> dict[str, Any]:
         order_id = str(order_id or "").strip()
@@ -851,7 +886,11 @@ def _polymarket_order_status(raw: Any) -> str:
     for key in ("status", "state", "order_status", "orderStatus"):
         value = raw.get(key)
         if value is not None:
-            return str(value).strip().lower()
+            status = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+            for prefix in ("order_status_", "trade_status_"):
+                if status.startswith(prefix):
+                    return status[len(prefix) :]
+            return status
     return ""
 
 
@@ -931,6 +970,10 @@ def _polymarket_trade_matches_order(raw: Any, order_id: str) -> bool:
         for item in values:
             if str(item or "").strip().lower() == expected:
                 return True
+    for key in ("maker_orders", "makerOrders"):
+        for maker_order in _json_list(raw.get(key)):
+            if _polymarket_trade_matches_order(maker_order, order_id):
+                return True
     return False
 
 
@@ -975,3 +1018,28 @@ def _looks_like_uncertain_post_error(exc: Exception) -> bool:
             "504",
         )
     )
+
+
+def _looks_like_trading_unavailable_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(
+        marker in text
+        for marker in (
+            "trading is disabled",
+            "trading is currently disabled",
+            "cancel-only mode",
+            "cancel only mode",
+            "post-only mode",
+            "post only mode",
+        )
+    )
+
+
+def _looks_like_definitive_no_order_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "order timed out" in text
+
+
+def _short_exception_text(exc: Exception, limit: int = 160) -> str:
+    text = " ".join(str(exc).split())
+    return text if len(text) <= limit else f"{text[: limit - 3]}..."

@@ -374,6 +374,11 @@ class HotTriggerTests(unittest.TestCase):
             )
         )
         self.assertFalse(_requires_watch_quarantine("order could not be fully filled; FOK killed"))
+        self.assertFalse(
+            _requires_watch_quarantine(
+                "polymarket_trading_unavailable: Polymarket rejected the order before acceptance"
+            )
+        )
         self.assertTrue(
             _requires_watch_quarantine(
                 "PolyApiException status_code=403: Trading restricted in your region"
