@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
+from decimal import Decimal, ROUND_CEILING, ROUND_HALF_EVEN, ROUND_HALF_UP
 
 from .config import Settings
 from .models import ArbLeg, Exchange
@@ -91,10 +91,13 @@ def _scheduled_leg_fee_cents_per_contract(leg: ArbLeg) -> Decimal:
             ),
             Decimal("0"),
         )
-        rounded_fee_usd = raw_fee_usd.quantize(
-            POLYMARKET_FEE_PRECISION,
-            rounding=ROUND_HALF_UP,
-        )
+        if schedule.fee_type == "polymarket_us_curve":
+            rounded_fee_usd = raw_fee_usd.quantize(CENT, rounding=ROUND_HALF_EVEN)
+        else:
+            rounded_fee_usd = raw_fee_usd.quantize(
+                POLYMARKET_FEE_PRECISION,
+                rounding=ROUND_HALF_UP,
+            )
     else:
         raise ValueError(f"unsupported fee schedule exchange: {leg.exchange.value}")
 

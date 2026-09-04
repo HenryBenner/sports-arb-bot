@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .config import Settings
-from .exchanges import KalshiClient, PolymarketClient
+from .exchanges import KalshiClient, PolymarketClient, PolymarketUSClient
 from .models import Exchange, OrderBook, Side
 from .predictionhunt import PredictionHuntLeg, PredictionHuntOpportunity
 from .ssl_compat import websocket_ssl_context
@@ -33,7 +33,7 @@ class LiveReadinessChecker:
         self,
         settings: Settings,
         kalshi: KalshiClient,
-        polymarket: PolymarketClient,
+        polymarket: PolymarketClient | PolymarketUSClient,
         log_dir: str | Path = "logs",
         seconds: int | None = None,
         kalshi_ticker: str | None = None,
@@ -62,7 +62,7 @@ class LiveReadinessChecker:
         try:
             self._recorded("kalshi", "Kalshi signing dependency", check_kalshi_signing_dependencies, failures, print_status)
             self._recorded("both", "WebSocket dependency", check_websockets_dependency, failures, print_status)
-            if self.settings.hot_geoblock_check:
+            if self.settings.hot_geoblock_check and not isinstance(self.polymarket, PolymarketUSClient):
                 self._recorded(
                     "polymarket",
                     "Polymarket geographic eligibility",
@@ -190,6 +190,10 @@ class LiveReadinessChecker:
             handle.write(json.dumps(payload, sort_keys=True) + "\n")
 
     def _check_polymarket_sdk(self) -> str:
+        if isinstance(self.polymarket, PolymarketUSClient):
+            if importlib.util.find_spec("polymarket_us") is None:
+                raise RuntimeError("polymarket_sdk_missing: polymarket_us")
+            return self.polymarket.validate_credentials_locally()
         package = "py_clob_client_v2" if self.settings.polymarket_signature_type == 3 else "py_clob_client"
         if importlib.util.find_spec(package) is None:
             raise RuntimeError(f"polymarket_sdk_missing: {package}")
@@ -250,6 +254,8 @@ class LiveReadinessChecker:
             self.polymarket_token = token
             return token
         token = self.polymarket_token
+        if isinstance(self.polymarket, PolymarketUSClient) and "::" not in token:
+            token = self.polymarket.resolve_predictionhunt_market(token, Side.YES)
         levels = self.polymarket.get_token_ask_levels(token)
         if not levels:
             raise RuntimeError(f"polymarket_orderbook_empty: {token}")
@@ -296,6 +302,16 @@ class LiveReadinessChecker:
 
     async def _check_polymarket_websocket(self, token: str) -> str:
         check_websockets_dependency()
+        if isinstance(self.polymarket, PolymarketUSClient):
+            slug, _side = self.polymarket._split_ref(token)
+            websocket = self.polymarket.market_websocket()
+            await websocket.connect()
+            try:
+                await websocket.subscribe_market_data("readiness", [slug])
+                await asyncio.sleep(self.seconds)
+            finally:
+                await websocket.close()
+            return token
         from .websockets import _polymarket_ws_url
 
         import websockets
@@ -320,7 +336,7 @@ class LiveReadinessChecker:
         raise RuntimeError(f"{last_error} after 3 attempts")
 
     def _auto_kalshi_ticker(self) -> str:
-        data = self.kalshi.get_markets(status="open", limit=50)
+        data = self.kalshi.get_markets(status="open", limit=100, mve_filter="exclude")
         last_error: Exception | None = None
         for market in _items(data):
             ticker = _first_string(market, "ticker", "market_ticker", "id")
@@ -336,6 +352,27 @@ class LiveReadinessChecker:
         raise RuntimeError(f"could_not_auto_select_kalshi_readiness_ticker{detail}")
 
     def _auto_polymarket_token(self) -> str:
+        if isinstance(self.polymarket, PolymarketUSClient):
+            data = self.polymarket.get_markets(
+                limit=50,
+                active=True,
+                closed=False,
+                archived=False,
+                liquidityNumMin=0.01,
+                orderBy=["liquidityNum"],
+                orderDirection="desc",
+            )
+            for market in _items(data):
+                slug = _first_string(market, "slug", "marketSlug")
+                if not slug:
+                    continue
+                token = self.polymarket._ref(slug, Side.YES)
+                try:
+                    if self.polymarket.get_token_ask_levels(token):
+                        return token
+                except Exception:
+                    continue
+            raise RuntimeError("could_not_auto_select_polymarket_us_readiness_market")
         sources = (
             self._polymarket_sampling_markets,
             lambda: self.polymarket.get_events(active="true", closed="false", limit=5),
@@ -412,7 +449,7 @@ def check_websockets_dependency(
 
 def preflight_hot_candidate(
     kalshi: KalshiClient,
-    polymarket: PolymarketClient,
+    polymarket: PolymarketClient | PolymarketUSClient,
     opportunity: PredictionHuntOpportunity,
 ) -> str | None:
     seen: set[tuple[Exchange, str, Side]] = set()
@@ -431,7 +468,10 @@ def preflight_hot_candidate(
                 return f"kalshi_orderbook_empty {leg.market_id} {leg.side.value}"
         elif leg.platform is Exchange.POLYMARKET:
             try:
-                levels = polymarket.get_token_ask_levels(leg.market_id)
+                try:
+                    levels = polymarket.get_token_ask_levels(leg.market_id, leg.side)
+                except TypeError:
+                    levels = polymarket.get_token_ask_levels(leg.market_id)
             except Exception as exc:
                 return f"polymarket_orderbook_unavailable {leg.market_id}: {exc}"
             if not levels:

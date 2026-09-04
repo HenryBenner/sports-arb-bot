@@ -486,7 +486,10 @@ class TradeExecutor:
             return [BookLevel(leg.price_cents, leg.size)]
         elif leg.exchange is Exchange.POLYMARKET:
             if hasattr(self.polymarket, "get_token_ask_levels"):
-                return self.polymarket.get_token_ask_levels(leg.market_id)
+                try:
+                    return self.polymarket.get_token_ask_levels(leg.market_id, leg.side)
+                except TypeError:
+                    return self.polymarket.get_token_ask_levels(leg.market_id)
             if hasattr(self.polymarket, "get_token_best_ask"):
                 level = self.polymarket.get_token_best_ask(leg.market_id)
                 return [] if level is None else [level]

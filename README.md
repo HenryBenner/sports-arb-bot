@@ -155,6 +155,32 @@ This is the only live-capable workflow. Hot mode uses PredictionHunt as a
 macro discovery feed for arbitrage only. Candidates open short-lived exchange
 WebSocket watches for eligible Kalshi/Polymarket opportunities:
 
+### Polymarket US
+
+Set `POLYMARKET_VENUE=us` to use the Polymarket US retail API. This mode uses
+the developer key ID and base64 Ed25519 secret, US market slugs, explicit
+BUY YES/BUY NO order intents, FOK orders, and the authenticated US market
+WebSocket. The older wallet, funder, CLOB, and Gamma credentials are not used.
+
+```env
+POLYMARKET_VENUE=us
+POLYMARKET_US_KEY_ID=
+POLYMARKET_US_SECRET_KEY=
+POLYMARKET_US_PUBLIC_URL=https://gateway.polymarket.us
+POLYMARKET_US_API_URL=https://api.polymarket.us
+POLYMARKET_US_WS_URL=wss://api.polymarket.us/v1/ws/markets
+```
+
+Run the read-only Polymarket US diagnostic with:
+
+```powershell
+.\.venv311\Scripts\python.exe scripts\check_polymarket_us.py
+```
+
+PredictionHunt must supply a Polymarket US market slug or URL for each US leg.
+A numeric Polymarket International outcome token is intentionally rejected;
+it is not a Polymarket US market identifier and cannot safely be guessed.
+
 ```powershell
 python -m firstbot run-hot-arb --limit 250 --predictionhunt-poll-seconds 30 --hot-window-seconds 600 --max-days-to-resolution 3 --prefer-same-day --paper
 ```

@@ -79,6 +79,12 @@ class Settings:
     prefer_same_day: bool
     book_stale_ms: int
     max_active_watches: int
+    polymarket_venue: str = "global"
+    polymarket_us_key_id: str | None = None
+    polymarket_us_secret_key: str | None = None
+    polymarket_us_public_url: str = "https://gateway.polymarket.us"
+    polymarket_us_api_url: str = "https://api.polymarket.us"
+    polymarket_us_ws_url: str = "wss://api.polymarket.us/v1/ws/markets"
     hot_fast_path: bool = True
     hot_fast_max_total_usd: Decimal = Decimal("20")
     hot_fast_max_book_age_ms: int = 1000
@@ -195,6 +201,18 @@ class Settings:
             prefer_same_day=_bool_env("BOT_PREFER_SAME_DAY", True),
             book_stale_ms=_int_env("BOT_BOOK_STALE_MS", 1000),
             max_active_watches=_int_env("BOT_MAX_ACTIVE_WATCHES", 250),
+            polymarket_venue=os.getenv("POLYMARKET_VENUE", "global").strip().lower(),
+            polymarket_us_key_id=os.getenv("POLYMARKET_US_KEY_ID") or None,
+            polymarket_us_secret_key=os.getenv("POLYMARKET_US_SECRET_KEY") or None,
+            polymarket_us_public_url=os.getenv(
+                "POLYMARKET_US_PUBLIC_URL", "https://gateway.polymarket.us"
+            ).rstrip("/"),
+            polymarket_us_api_url=os.getenv(
+                "POLYMARKET_US_API_URL", "https://api.polymarket.us"
+            ).rstrip("/"),
+            polymarket_us_ws_url=os.getenv(
+                "POLYMARKET_US_WS_URL", "wss://api.polymarket.us/v1/ws/markets"
+            ),
             hot_fast_path=_bool_env("BOT_HOT_FAST_PATH", True),
             hot_fast_max_total_usd=_decimal_env("BOT_HOT_FAST_MAX_TOTAL_USD", "20"),
             hot_fast_max_book_age_ms=_int_env("BOT_HOT_FAST_MAX_BOOK_AGE_MS", 1000),

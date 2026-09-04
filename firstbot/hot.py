@@ -18,7 +18,7 @@ from .executor import (
     _smallest_profitable_equal_fill,
 )
 from .fees import total_cost_adjustment_cents
-from .exchanges import KalshiClient, PolymarketClient
+from .exchanges import KalshiClient, PolymarketClient, PolymarketUSClient
 from .matching import MarketMatchingEngine
 from .models import ArbLeg, ArbOpportunity, BookLevel, Exchange, FeeSchedule, Side
 from .predictionhunt import PredictionHuntClient, PredictionHuntLeg, PredictionHuntOpportunity
@@ -530,7 +530,7 @@ class HotArbRunner:
         self,
         predictionhunt: PredictionHuntClient,
         kalshi: KalshiClient,
-        polymarket: PolymarketClient,
+        polymarket: PolymarketClient | PolymarketUSClient,
         settings: Settings,
         log_dir: str | Path = "logs",
         clock: Callable[[], datetime] | None = None,
@@ -976,11 +976,16 @@ class HotArbRunner:
         legs: list[PredictionHuntLeg] = []
         for leg in opportunity.legs:
             if leg.platform is Exchange.POLYMARKET:
-                token_id = (
-                    leg.market_id
-                    if _looks_like_clob_token_id(leg.market_id)
-                    else self.polymarket.resolve_clob_token_id(leg.market_id, leg.side)
-                )
+                if isinstance(self.polymarket, PolymarketUSClient):
+                    token_id = self.polymarket.resolve_predictionhunt_market(
+                        leg.market_id, leg.side, leg.source_url
+                    )
+                else:
+                    token_id = (
+                        leg.market_id
+                        if _looks_like_clob_token_id(leg.market_id)
+                        else self.polymarket.resolve_clob_token_id(leg.market_id, leg.side)
+                    )
                 legs.append(
                     leg if token_id == leg.market_id else replace(leg, market_id=token_id)
                 )
@@ -997,7 +1002,7 @@ class HotArbRunner:
         requests = []
         for leg in opportunity.legs:
             client = self.kalshi if leg.platform is Exchange.KALSHI else self.polymarket
-            if not isinstance(client, (KalshiClient, PolymarketClient)):
+            if not isinstance(client, (KalshiClient, PolymarketClient, PolymarketUSClient)):
                 continue
             requests.append(
                 (

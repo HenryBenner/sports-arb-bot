@@ -11,7 +11,7 @@ from pathlib import Path
 from .arb import verify_pair, verify_predictionhunt_opportunity
 from .config import Settings
 from .executor import TradeExecutor
-from .exchanges import KalshiClient, PolymarketClient
+from .exchanges import KalshiClient, PolymarketClient, create_polymarket_client
 from .hot import HotArbRunner, LiveLegBook, merge_streams
 from .http import HttpClient
 from .manual_sports_arb import ManualPairInput, ManualSportsArbRunner, load_mapping
@@ -439,14 +439,28 @@ def scan_input(input_value: str, candidate: str | None, rules_compatible: bool) 
 def doctor() -> int:
     settings = Settings.from_env()
     http = HttpClient(timeout=settings.http_timeout_seconds)
+    polymarket = create_polymarket_client(settings, http=http)
     checks = [
-        ("Kalshi markets", f"{settings.kalshi_base_url}/markets", {"status": "open", "limit": 1}),
-        ("Polymarket events", f"{settings.polymarket_gamma_url}/events", {"active": "true", "closed": "false", "limit": 1}),
+        (
+            "Kalshi markets",
+            lambda: http.get_json(
+                f"{settings.kalshi_base_url}/markets",
+                params={"status": "open", "limit": 1},
+            ),
+        ),
+        (
+            "Polymarket US markets" if settings.polymarket_venue == "us" else "Polymarket events",
+            lambda: (
+                polymarket.get_markets(limit=1, active=True)
+                if settings.polymarket_venue == "us"
+                else polymarket.get_events(active="true", closed="false", limit=1)
+            ),
+        ),
     ]
     ok = True
-    for label, url, params in checks:
+    for label, check in checks:
         try:
-            http.get_json(url, params=params)
+            check()
             print(f"ok: {label}")
         except RuntimeError as exc:
             ok = False
@@ -646,17 +660,7 @@ def run_hot_arb(
         private_key=settings.kalshi_private_key,
         http=http,
     )
-    polymarket = PolymarketClient(
-        gamma_url=settings.polymarket_gamma_url,
-        clob_url=settings.polymarket_clob_url,
-        private_key=settings.polymarket_private_key,
-        api_key=settings.polymarket_api_key,
-        api_secret=settings.polymarket_api_secret,
-        api_passphrase=settings.polymarket_api_passphrase,
-        funder_address=settings.polymarket_funder_address,
-        signature_type=settings.polymarket_signature_type,
-        http=http,
-    )
+    polymarket = create_polymarket_client(settings, http=http)
     if execute:
         _deploy_guard(settings, kalshi, polymarket)
         if settings.startup_readiness and not skip_startup_readiness:
@@ -671,7 +675,7 @@ def run_hot_arb(
             ).run(print_status=True)
         elif skip_startup_readiness:
             print("warning: startup live readiness skipped")
-            if settings.hot_geoblock_check:
+            if settings.hot_geoblock_check and settings.polymarket_venue != "us":
                 checker = LiveReadinessChecker(
                     settings=settings,
                     kalshi=kalshi,
@@ -738,17 +742,7 @@ def run_live_readiness(
         private_key=settings.kalshi_private_key,
         http=http,
     )
-    polymarket = PolymarketClient(
-        gamma_url=settings.polymarket_gamma_url,
-        clob_url=settings.polymarket_clob_url,
-        private_key=settings.polymarket_private_key,
-        api_key=settings.polymarket_api_key,
-        api_secret=settings.polymarket_api_secret,
-        api_passphrase=settings.polymarket_api_passphrase,
-        funder_address=settings.polymarket_funder_address,
-        signature_type=settings.polymarket_signature_type,
-        http=http,
-    )
+    polymarket = create_polymarket_client(settings, http=http)
     LiveReadinessChecker(
         settings=settings,
         kalshi=kalshi,
@@ -796,17 +790,7 @@ def run_signal_bot(
         private_key=settings.kalshi_private_key,
         http=http,
     )
-    polymarket = PolymarketClient(
-        gamma_url=settings.polymarket_gamma_url,
-        clob_url=settings.polymarket_clob_url,
-        private_key=settings.polymarket_private_key,
-        api_key=settings.polymarket_api_key,
-        api_secret=settings.polymarket_api_secret,
-        api_passphrase=settings.polymarket_api_passphrase,
-        funder_address=settings.polymarket_funder_address,
-        signature_type=settings.polymarket_signature_type,
-        http=http,
-    )
+    polymarket = create_polymarket_client(settings, http=http)
     predictionhunt = PredictionHuntClient(
         base_url=settings.predictionhunt_base_url,
         api_key=settings.predictionhunt_api_key,
@@ -1121,7 +1105,7 @@ def _live_book_record(book: LiveLegBook) -> dict:
 def _deploy_guard(
     settings: Settings,
     kalshi: KalshiClient,
-    polymarket: PolymarketClient,
+    polymarket,
 ) -> None:
     missing: list[str] = []
     if not settings.live_trading:

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from typing import Any
 
-from .exchanges import KalshiClient, PolymarketClient
+from .exchanges import KalshiClient, PolymarketClient, PolymarketUSClient
 from .hot import LiveLegBook
 from .models import BookLevel, Exchange, Side
 from .predictionhunt import PredictionHuntLeg
@@ -168,13 +168,17 @@ class KalshiOrderbookStream:
 
 
 class PolymarketOrderbookStream:
-    def __init__(self, polymarket: PolymarketClient, legs: tuple[PredictionHuntLeg, ...]) -> None:
+    def __init__(self, polymarket: PolymarketClient | PolymarketUSClient, legs: tuple[PredictionHuntLeg, ...]) -> None:
         self.polymarket = polymarket
         self.legs = tuple(leg for leg in legs if leg.platform is Exchange.POLYMARKET)
         self.url = _polymarket_ws_url(polymarket.clob_url)
 
     async def listen_until(self, expires_at: datetime) -> AsyncIterator[LiveLegBook]:
         if not self.legs:
+            return
+        if isinstance(self.polymarket, PolymarketUSClient):
+            async for update in self._listen_us_until(expires_at):
+                yield update
             return
         try:
             import websockets
@@ -194,6 +198,45 @@ class PolymarketOrderbookStream:
                 )
                 for update in parse_polymarket_message(json.loads(raw), books):
                     yield _remap_polymarket_token_side(update, side_by_token_id)
+
+    async def _listen_us_until(self, expires_at: datetime) -> AsyncIterator[LiveLegBook]:
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        websocket = self.polymarket.market_websocket()
+        websocket.on("market_data", queue.put_nowait)
+        slugs = sorted({self.polymarket._split_ref(leg.market_id)[0] for leg in self.legs})
+        legs_by_slug: dict[str, list[PredictionHuntLeg]] = {}
+        for leg in self.legs:
+            slug, _side = self.polymarket._split_ref(leg.market_id)
+            legs_by_slug.setdefault(slug, []).append(leg)
+        await websocket.connect()
+        try:
+            await websocket.subscribe_market_data("firstbot-hot", slugs)
+            while datetime.now(timezone.utc) < expires_at:
+                remaining = max(0.1, (expires_at - datetime.now(timezone.utc)).total_seconds())
+                message = await asyncio.wait_for(queue.get(), timeout=remaining)
+                data = message.get("marketData") if isinstance(message, dict) else None
+                if not isinstance(data, dict):
+                    continue
+                slug = str(data.get("marketSlug") or "")
+                for leg in legs_by_slug.get(slug, []):
+                    levels = (
+                        self.polymarket._offer_levels(data)
+                        if leg.side is Side.YES
+                        else self.polymarket._no_ask_levels(data)
+                    )
+                    yield LiveLegBook(
+                        exchange=Exchange.POLYMARKET,
+                        market_id=leg.market_id,
+                        side=leg.side,
+                        best_ask=min(levels, key=lambda level: level.price_cents, default=None),
+                        updated_at=datetime.now(timezone.utc),
+                        connected=True,
+                        snapshot_ready=True,
+                        ask_levels=tuple(levels),
+                        min_order_size=Decimal("1"),
+                    )
+        finally:
+            await websocket.close()
 
     async def raw_listen_until(self, expires_at: datetime) -> AsyncIterator[dict[str, Any] | list[dict[str, Any]]]:
         if not self.legs:
