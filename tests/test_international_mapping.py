@@ -154,19 +154,33 @@ class MappingTests(unittest.TestCase):
         with self.assertRaisesRegex(MappingRejected, "verified_matches=2"):
             mapper.resolve("111", Side.YES)
 
-    def test_settlement_mismatch(self):
+    def test_edge_case_settlement_mismatch_is_warning_only(self):
         mapper = self.setup_mapper()
         self.us_event["markets"][0]["description"] += " Postponement settles at last fair market price."
-        with self.assertRaisesRegex(MappingRejected, "last-fair-market-price"):
-            mapper.resolve("111", Side.YES)
+        report = mapper.inspect("111", Side.YES)
+        self.assertEqual(report["identity_matches"], 1)
+        self.assertTrue(report["candidates"][0]["rules_status"].startswith("warning:"))
+        self.assertIn("last-fair-market-price", report["candidates"][0]["rules_status"])
+        self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
 
-    def test_equal_prose_cannot_override_rule_fields(self):
-        for key in ("includesOvertime", "includesExtraInnings", "pushPolicy", "voidPolicy", "rulesDisclaimer"):
+    def test_explicit_normal_play_rule_conflicts_are_rejected(self):
+        for key in ("includesOvertime", "includesExtraInnings", "pushPolicy", "tiePolicy"):
+            with self.subTest(key=key):
+                mapper = self.setup_mapper()
+                self.source[key] = "source-policy"
+                self.us_event["markets"][0][key] = "different-policy"
+                with self.assertRaisesRegex(MappingRejected, key):
+                    mapper.resolve("111", Side.YES)
+
+    def test_edge_case_rule_fields_are_warning_only(self):
+        for key in ("resolutionSource", "rules", "rulesDisclaimer", "voidPolicy",
+                    "postponementPolicy", "cancellationPolicy", "settlementDeadline"):
             with self.subTest(key=key):
                 mapper = self.setup_mapper()
                 self.us_event["markets"][0][key] = "different"
-                with self.assertRaisesRegex(MappingRejected, key):
-                    mapper.resolve("111", Side.YES)
+                report = mapper.inspect("111", Side.YES)
+                self.assertTrue(report["candidates"][0]["rules_status"].startswith("warning:"))
+                self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
 
     def test_success_cache_avoids_all_network_calls_and_expires(self):
         mapper = self.setup_mapper()
@@ -285,14 +299,13 @@ class MappingTests(unittest.TestCase):
         mapper.resolve("222", Side.NO)
         self.assertEqual(mapper._cache[("mapping", "222", Side.NO)][0], 300)
 
-    def test_inspection_separates_identity_from_rules_approval(self):
+    def test_inspection_keeps_settlement_warning_without_blocking_identity(self):
         mapper = self.setup_mapper()
         self.us_event["markets"][0]["description"] += " Different rules."
         report = mapper.inspect("111", Side.YES)
         self.assertEqual(report["identity_matches"], 1)
-        self.assertNotEqual(report["candidates"][0]["rules_status"], "exact")
-        with self.assertRaisesRegex(MappingRejected, "verified_matches=0 identity_matches=1"):
-            mapper.resolve("111", Side.YES)
+        self.assertTrue(report["candidates"][0]["rules_status"].startswith("warning:"))
+        self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
 
     def test_same_day_time_difference_is_only_a_near_match(self):
         mapper = self.setup_mapper()
