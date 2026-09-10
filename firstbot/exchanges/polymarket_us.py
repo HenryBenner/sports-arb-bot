@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import base64
 import importlib.util
+import json
+import logging
 import os
+import time
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -11,7 +14,11 @@ from ..models import BookLevel, Exchange, FeeSchedule, OrderBook, Side
 from .international_mapping import InternationalMarketMapper
 
 
+LOG = logging.getLogger(__name__)
 REF_SEPARATOR = "::"
+ORIENTATION_CACHE_SECONDS = 300.0
+ORIENTATION_MAX_DEVIATION_CENTS = Decimal("15")
+ORIENTATION_MIN_SEPARATION_CENTS = Decimal("10")
 CONFIRMED_STATES = {"order_state_filled", "filled"}
 TERMINAL_EMPTY_STATES = {
     "order_state_canceled", "order_state_cancelled", "order_state_expired",
@@ -46,6 +53,9 @@ class PolymarketUSClient:
         self.timeout = timeout
         self._sdk_client = sdk_client
         self.international_mapper = InternationalMarketMapper(self, gamma_url, http)
+        self._predictionhunt_orientation_cache: dict[
+            tuple[str, str], tuple[float, str]
+        ] = {}
 
     def _client(self) -> Any:
         if self._sdk_client is None:
@@ -108,7 +118,18 @@ class PolymarketUSClient:
     ) -> str:
         current_slug, encoded_side = self._split_ref(market_id)
         if current_slug.isdigit():
-            return self.international_mapper.resolve(current_slug, side)
+            cache_key = (current_slug, side.value)
+            now = time.monotonic()
+            cached = self._predictionhunt_orientation_cache.get(cache_key)
+            if cached and cached[0] > now:
+                return cached[1]
+            mapped = self.international_mapper.resolve(current_slug, side)
+            oriented = self._price_confirm_numeric_mapping(current_slug, mapped)
+            self._predictionhunt_orientation_cache[cache_key] = (
+                now + ORIENTATION_CACHE_SECONDS,
+                oriented,
+            )
+            return oriented
         # Already resolved references retain their venue orientation.
         if encoded_side is not None:
             return self._ref(current_slug, encoded_side)
@@ -131,6 +152,125 @@ class PolymarketUSClient:
             "polymarket_us_market_mapping_required: PredictionHunt must provide a "
             f"Polymarket US market slug or URL; received {market_id!r}{detail}"
         )
+
+    def _price_confirm_numeric_mapping(self, token_id: str, mapped_ref: str) -> str:
+        """Confirm local US YES/NO orientation after exact contract identity matching.
+
+        International/US prices never establish contract identity. They are only
+        used here to decide which side of the already-verified US binary contract
+        corresponds to the International outcome token. Ambiguous comparisons fail
+        closed, while unavailable International price metadata leaves the exact
+        structured mapping unchanged and the downstream cross-50 guard intact.
+        """
+        try:
+            source_price = self._international_token_price_cents(token_id)
+        except Exception as exc:
+            LOG.warning(
+                "international_token=%s price orientation unavailable: %s",
+                token_id,
+                exc,
+            )
+            return mapped_ref
+        if source_price is None:
+            return mapped_ref
+
+        slug, structured_side = self._split_ref(mapped_ref)
+        if structured_side is None:
+            raise RuntimeError(
+                "polymarket_us_price_orientation_unverified: mapped US reference "
+                "is missing its YES/NO side"
+            )
+        data = self._book_data(slug)
+        yes_level = min(
+            self._offer_levels(data),
+            key=lambda level: level.price_cents,
+            default=None,
+        )
+        no_level = min(
+            self._no_ask_levels(data),
+            key=lambda level: level.price_cents,
+            default=None,
+        )
+        if yes_level is None or no_level is None:
+            raise RuntimeError(
+                "polymarket_us_price_orientation_unverified: both US YES and NO "
+                "asks are required"
+            )
+
+        yes_price = Decimal(yes_level.price_cents)
+        no_price = Decimal(no_level.price_cents)
+        yes_diff = abs(yes_price - source_price)
+        no_diff = abs(no_price - source_price)
+        best_diff = min(yes_diff, no_diff)
+        separation = abs(yes_diff - no_diff)
+        if best_diff > ORIENTATION_MAX_DEVIATION_CENTS:
+            raise RuntimeError(
+                "polymarket_us_price_orientation_unverified: International token "
+                f"price={_decimal_text(source_price)}c does not match US YES={yes_level.price_cents}c "
+                f"or NO={no_level.price_cents}c within {ORIENTATION_MAX_DEVIATION_CENTS}c"
+            )
+        if separation < ORIENTATION_MIN_SEPARATION_CENTS:
+            raise RuntimeError(
+                "polymarket_us_price_orientation_ambiguous: International token "
+                f"price={_decimal_text(source_price)}c US YES={yes_level.price_cents}c "
+                f"US NO={no_level.price_cents}c"
+            )
+
+        selected_side = Side.YES if yes_diff < no_diff else Side.NO
+        if selected_side is not structured_side:
+            LOG.warning(
+                "international_token=%s corrected US side orientation structured=%s "
+                "price_confirmed=%s source=%sc us_yes=%sc us_no=%sc",
+                token_id,
+                structured_side.value,
+                selected_side.value,
+                _decimal_text(source_price),
+                yes_level.price_cents,
+                no_level.price_cents,
+            )
+        else:
+            LOG.info(
+                "international_token=%s confirmed US side orientation=%s "
+                "source=%sc us_yes=%sc us_no=%sc",
+                token_id,
+                selected_side.value,
+                _decimal_text(source_price),
+                yes_level.price_cents,
+                no_level.price_cents,
+            )
+        return self._ref(slug, selected_side)
+
+    def _international_token_price_cents(self, token_id: str) -> Decimal | None:
+        mapper = self.international_mapper
+        http = getattr(mapper, "http", None)
+        gamma_url = str(getattr(mapper, "gamma_url", "") or "").rstrip("/")
+        if http is None or not gamma_url or not hasattr(http, "get_json"):
+            return None
+        raw = http.get_json(
+            f"{gamma_url}/markets",
+            {"clob_token_ids": token_id},
+        )
+        rows = raw if isinstance(raw, list) else raw.get("markets", []) if isinstance(raw, dict) else []
+        matched = [
+            market
+            for market in rows
+            if isinstance(market, dict)
+            and token_id in [str(value) for value in _json_array(market.get("clobTokenIds"))]
+        ]
+        if len(matched) != 1:
+            return None
+        market = matched[0]
+        token_ids = [str(value) for value in _json_array(market.get("clobTokenIds"))]
+        prices = _json_array(market.get("outcomePrices"))
+        if len(token_ids) != len(prices) or token_id not in token_ids:
+            return None
+        try:
+            price = Decimal(str(prices[token_ids.index(token_id)]))
+        except Exception:
+            return None
+        if not price.is_finite() or price <= 0 or price >= 1:
+            return None
+        return price * Decimal("100")
 
     def resolve_clob_token_id(self, market_id: str, side: Side) -> str:
         return self.resolve_predictionhunt_market(market_id, side)
@@ -358,6 +498,19 @@ class PolymarketUSClient:
             "polymarket_order_state_uncertain: Polymarket US FOK order was not "
             f"confirmed filled state={state or 'missing'} order_id={order_id or 'missing'}: {raw}"
         )
+
+
+def _json_array(value: Any) -> list[Any]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return []
+    return value if isinstance(value, list) else []
+
+
+def _decimal_text(value: Decimal) -> str:
+    return format(Decimal(value).quantize(Decimal("0.01")), "f").rstrip("0").rstrip(".")
 
 
 def _levels(raw_levels: Any, reverse: bool) -> list[BookLevel]:
