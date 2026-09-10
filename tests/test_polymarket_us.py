@@ -79,6 +79,23 @@ class PolymarketUSClientTests(unittest.TestCase):
             sdk_client=self.sdk,
         )
 
+    def _mock_numeric_mapper(self, mapped="team-a-win::yes", source_price="0.94"):
+        mapper = Mock()
+        mapper.resolve.return_value = mapped
+        mapper.gamma_url = "https://gamma.example"
+        mapper.http.get_json.return_value = [{
+            "clobTokenIds": '["123456", "654321"]',
+            "outcomePrices": f'["{source_price}", "{Decimal("1") - Decimal(source_price)}"]',
+        }]
+        self.client.international_mapper = mapper
+        return mapper
+
+    def _set_binary_book(self, yes_ask: str, yes_bid: str):
+        self.sdk.markets.books["team-a-win"]["marketData"].update(
+            offers=[{"px": {"value": yes_ask, "currency": "USD"}, "qty": "10"}],
+            bids=[{"px": {"value": yes_bid, "currency": "USD"}, "qty": "10"}],
+        )
+
     def test_yes_and_no_asks_come_from_opposite_book_sides(self):
         yes = self.client.get_token_ask_levels("team-a-win::yes")
         no = self.client.get_token_ask_levels("team-a-win::no")
@@ -98,11 +115,50 @@ class PolymarketUSClientTests(unittest.TestCase):
         self.assertEqual(result, "team-a-win::no")
 
     def test_numeric_token_always_uses_mapper_even_with_us_url(self):
-        self.client.international_mapper = Mock()
-        self.client.international_mapper.resolve.return_value = "team-a-win::no"
+        mapper = self._mock_numeric_mapper(mapped="team-a-win::no", source_price="0.40")
+        mapper.http.get_json.return_value = []
         self.assertEqual(self.client.resolve_predictionhunt_market(
             "123456", Side.YES, "https://polymarket.us/event/team-a-win"), "team-a-win::no")
-        self.client.international_mapper.resolve.assert_called_once_with("123456", Side.YES)
+        mapper.resolve.assert_called_once_with("123456", Side.YES)
+
+    def test_numeric_token_price_can_correct_structured_us_side(self):
+        mapper = self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.94")
+        self._set_binary_book("0.05", "0.05")
+        with self.assertLogs("firstbot.exchanges.polymarket_us", level="WARNING") as logs:
+            result = self.client.resolve_predictionhunt_market("123456", Side.NO)
+        self.assertEqual(result, "team-a-win::no")
+        self.assertTrue(any("corrected US side orientation" in line for line in logs.output))
+        mapper.resolve.assert_called_once_with("123456", Side.NO)
+
+    def test_numeric_token_price_confirms_structured_us_side(self):
+        mapper = self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.06")
+        self._set_binary_book("0.05", "0.05")
+        self.assertEqual(
+            self.client.resolve_predictionhunt_market("123456", Side.YES),
+            "team-a-win::yes",
+        )
+
+    def test_numeric_token_price_orientation_rejects_ambiguous_midpoint(self):
+        self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.50")
+        self._set_binary_book("0.49", "0.49")
+        with self.assertRaisesRegex(RuntimeError, "price_orientation_ambiguous"):
+            self.client.resolve_predictionhunt_market("123456", Side.YES)
+
+    def test_numeric_token_price_orientation_rejects_far_prices(self):
+        self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.75")
+        self._set_binary_book("0.05", "0.05")
+        with self.assertRaisesRegex(RuntimeError, "price_orientation_unverified"):
+            self.client.resolve_predictionhunt_market("123456", Side.YES)
+
+    def test_numeric_orientation_result_is_cached(self):
+        mapper = self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.94")
+        self._set_binary_book("0.05", "0.05")
+        first = self.client.resolve_predictionhunt_market("123456", Side.NO)
+        second = self.client.resolve_predictionhunt_market("123456", Side.NO)
+        self.assertEqual(first, "team-a-win::no")
+        self.assertEqual(second, first)
+        mapper.resolve.assert_called_once_with("123456", Side.NO)
+        mapper.http.get_json.assert_called_once()
 
     def test_encoded_outcome_controls_books_despite_feed_pair_label(self):
         levels = self.client.get_token_ask_levels("team-a-win::no", Side.YES)
