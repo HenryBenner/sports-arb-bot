@@ -642,7 +642,7 @@ class HotArbRunner:
                     if exact_pair_blocker:
                         self._log_candidate(opportunity, "skipped", exact_pair_blocker)
                         continue
-                    opportunity = self._resolve_hot_arb_legs(opportunity)
+                    opportunity = await asyncio.to_thread(self._resolve_hot_arb_legs, opportunity)
                     allowed_pairs = self._hot_allowed_pair_keys(opportunity)
                     if not allowed_pairs:
                         self._log_candidate(

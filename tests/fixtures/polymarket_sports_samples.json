@@ -1,0 +1,2412 @@
+{
+  "observed_at": "2026-09-10T21:27:41.431880+00:00",
+  "cases": [
+    {
+      "label": "mlb-col-nyy-2026-09-10",
+      "token": "90751690458114107337713649408403216457927076574647586480293403156551181026722",
+      "outcome": "New York Yankees",
+      "international_event": {
+        "slug": "mlb-col-nyy-2026-09-10",
+        "title": "Colorado Rockies vs. New York Yankees",
+        "sport": {
+          "id": 8,
+          "sport": "mlb",
+          "name": "MLB",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/mlb-f4060398.png",
+          "resolution": "https://www.mlb.com/",
+          "ordering": "away",
+          "tags": "1,100639,100381",
+          "primaryTagId": 100381,
+          "series": "3",
+          "createdAt": "2025-11-05T19:27:45.399303Z"
+        },
+        "seriesSlug": "mlb",
+        "startTime": "2026-09-10T23:05:00Z",
+        "teams": [
+          {
+            "name": "Colorado Rockies",
+            "alias": "Rockies",
+            "abbreviation": "col",
+            "league": "mlb"
+          },
+          {
+            "name": "New York Yankees",
+            "alias": "Yankees",
+            "abbreviation": "nyy",
+            "league": "mlb"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "mlb"
+          },
+          {
+            "slug": "baseball"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "mlb-col-nyy-2026-09-10",
+        "id": "4213195",
+        "question": "Colorado Rockies vs. New York Yankees",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-10 23:05:00+00",
+        "outcomes": "[\"Colorado Rockies\", \"New York Yankees\"]",
+        "clobTokenIds": "[\"2716714046243857716675391249001333793632778709774507210309950371221409161731\", \"90751690458114107337713649408403216457927076574647586480293403156551181026722\"]",
+        "description": "In the upcoming MLB game between the Colorado Rockies and New York Yankees, scheduled for September 10 at 7:05PM ET:\n\nThis market will resolve to \"Colorado Rockies\" if the Colorado Rockies win the game.\n\nThis market will resolve to \"New York Yankees\" if the New York Yankees win the game.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, or ends in a tie, this market will resolve 50-50.\n\nThe primary resolution source for this market is the official final statistics of the event as recognized by the governing body or event organizers. However, if the governing body or event organizers have not published final match statistics within 24 hours after the event's conclusion, a consensus of credible reporting may be used instead.",
+        "resolutionSource": "https://www.mlb.com/",
+        "closed": false,
+        "events": [
+          {
+            "slug": "mlb-col-nyy-2026-09-10"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "mlb-col-nyy-2026-09-10",
+        "title": "Colorado Rockies vs. New York Yankees",
+        "seriesSlug": "mlb-2026",
+        "startTime": "2026-09-10T23:05:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Colorado Rockies",
+            "alias": "Colorado Rockies",
+            "safeName": "Rockies",
+            "abbreviation": "col",
+            "league": "mlb"
+          },
+          {
+            "name": "New York Yankees",
+            "alias": "New York Yankees",
+            "safeName": "Yankees",
+            "abbreviation": "nyy",
+            "league": "mlb"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "mlb",
+            "league": {
+              "id": 5,
+              "name": "MLB",
+              "sportId": 5,
+              "tagId": 4,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/MLB.png",
+              "resolution": "https://www.mlb.com/",
+              "ordering": "away",
+              "activeSeriesId": 15,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "mlb",
+              "abbreviation": "MLB"
+            }
+          },
+          {
+            "slug": "baseball",
+            "sport": {
+              "id": 5,
+              "name": "Baseball",
+              "tagId": 15,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "baseball",
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Baseball.png"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-mlb-col-nyy-2026-09-10",
+            "id": "714371",
+            "question": "Who will win in the upcoming baseball event Colorado Rockies vs New York Yankees scheduled for September 10, 2026 at 11:05 PM UTC?",
+            "sportsMarketType": "baseball_team_full_game_winner",
+            "gameStartTime": "2026-09-10T23:05:00Z",
+            "outcomes": "[\"New York Yankees\",\"Colorado Rockies\"]",
+            "description": "This market will settle to the winner of the Colorado Rockies vs New York Yankees MLB game scheduled for 2026-09-10 at 7:05PM ET. Extra innings are included if played. If the game is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from MLB.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Colorado Rockies",
+                "long": true,
+                "team": {
+                  "name": "Colorado Rockies",
+                  "alias": "Colorado Rockies",
+                  "safeName": "Rockies",
+                  "abbreviation": "col",
+                  "league": "mlb"
+                }
+              },
+              {
+                "description": "New York Yankees",
+                "long": false,
+                "team": {
+                  "name": "New York Yankees",
+                  "alias": "New York Yankees",
+                  "safeName": "Yankees",
+                  "abbreviation": "nyy",
+                  "league": "mlb"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-mlb-col-nyy-2026-09-10",
+          "side": "no"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "mlb-col-det-2026-09-11",
+      "token": "29514720079430880907153855961681340086780539591746523903213318866605387663992",
+      "outcome": "Detroit Tigers",
+      "international_event": {
+        "slug": "mlb-col-det-2026-09-11",
+        "title": "Colorado Rockies vs. Detroit Tigers",
+        "sport": {
+          "id": 8,
+          "sport": "mlb",
+          "name": "MLB",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/mlb-f4060398.png",
+          "resolution": "https://www.mlb.com/",
+          "ordering": "away",
+          "tags": "1,100639,100381",
+          "primaryTagId": 100381,
+          "series": "3",
+          "createdAt": "2025-11-05T19:27:45.399303Z"
+        },
+        "seriesSlug": "mlb",
+        "startTime": "2026-09-11T22:40:00Z",
+        "teams": [
+          {
+            "name": "Colorado Rockies",
+            "alias": "Rockies",
+            "abbreviation": "col",
+            "league": "mlb"
+          },
+          {
+            "name": "Detroit Tigers",
+            "alias": "Tigers",
+            "abbreviation": "det",
+            "league": "mlb"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "mlb"
+          },
+          {
+            "slug": "baseball"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "mlb-col-det-2026-09-11",
+        "id": "4246024",
+        "question": "Colorado Rockies vs. Detroit Tigers",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-11 22:40:00+00",
+        "outcomes": "[\"Colorado Rockies\", \"Detroit Tigers\"]",
+        "clobTokenIds": "[\"114532502496137932693089688451118145455360814432114926570975463361514518351293\", \"29514720079430880907153855961681340086780539591746523903213318866605387663992\"]",
+        "description": "In the upcoming MLB game between the Colorado Rockies and Detroit Tigers, scheduled for September 11 at 6:40PM ET:\n\nThis market will resolve to \"Colorado Rockies\" if the Colorado Rockies win the game.\n\nThis market will resolve to \"Detroit Tigers\" if the Detroit Tigers win the game.\n\nIf the game is postponed, this market will remain open until the game has been completed. If the game is canceled entirely, with no make-up game, or ends in a tie, this market will resolve 50-50.\n\nThe primary resolution source for this market is the official final statistics of the event as recognized by the governing body or event organizers. However, if the governing body or event organizers have not published final match statistics within 24 hours after the event's conclusion, a consensus of credible reporting may be used instead.",
+        "resolutionSource": "https://www.mlb.com/",
+        "closed": false,
+        "events": [
+          {
+            "slug": "mlb-col-det-2026-09-11"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "mlb-col-det-2026-09-11",
+        "title": "Colorado Rockies vs. Detroit Tigers",
+        "seriesSlug": "mlb-2026",
+        "startTime": "2026-09-11T22:40:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Colorado Rockies",
+            "alias": "Colorado Rockies",
+            "safeName": "Rockies",
+            "abbreviation": "col",
+            "league": "mlb"
+          },
+          {
+            "name": "Detroit Tigers",
+            "alias": "Detroit Tigers",
+            "safeName": "Tigers",
+            "abbreviation": "det",
+            "league": "mlb"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "mlb",
+            "league": {
+              "id": 5,
+              "name": "MLB",
+              "sportId": 5,
+              "tagId": 4,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/MLB.png",
+              "resolution": "https://www.mlb.com/",
+              "ordering": "away",
+              "activeSeriesId": 15,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "mlb",
+              "abbreviation": "MLB"
+            }
+          },
+          {
+            "slug": "baseball",
+            "sport": {
+              "id": 5,
+              "name": "Baseball",
+              "tagId": 15,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "baseball",
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Baseball.png"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-mlb-col-det-2026-09-11",
+            "id": "730630",
+            "question": "Who will win in the upcoming baseball event Colorado Rockies vs Detroit Tigers scheduled for September 11, 2026 at 10:40 PM UTC?",
+            "sportsMarketType": "baseball_team_full_game_winner",
+            "gameStartTime": "2026-09-11T22:40:00Z",
+            "outcomes": "[\"Colorado Rockies\",\"Detroit Tigers\"]",
+            "description": "This market will settle to the winner of the Colorado Rockies vs Detroit Tigers MLB game scheduled for 2026-09-11 at 6:40PM ET. Extra innings are included if played. If the game is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from MLB.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Colorado Rockies",
+                "long": true,
+                "team": {
+                  "name": "Colorado Rockies",
+                  "alias": "Colorado Rockies",
+                  "safeName": "Rockies",
+                  "abbreviation": "col",
+                  "league": "mlb"
+                }
+              },
+              {
+                "description": "Detroit Tigers",
+                "long": false,
+                "team": {
+                  "name": "Detroit Tigers",
+                  "alias": "Detroit Tigers",
+                  "safeName": "Tigers",
+                  "abbreviation": "det",
+                  "league": "mlb"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-mlb-col-det-2026-09-11",
+          "side": "no"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "nfl-bal-ind-2026-09-13",
+      "token": "100851132542340394038916345715769912495135021067572506303645946689643832920092",
+      "outcome": "Ravens",
+      "international_event": {
+        "slug": "nfl-bal-ind-2026-09-13",
+        "title": "Ravens vs. Colts",
+        "sport": {
+          "id": 10,
+          "sport": "nfl",
+          "name": "NFL",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/nfl-helmet-blue-a1188621.png",
+          "resolution": "https://www.nfl.com/",
+          "ordering": "away",
+          "tags": "1,450,100639",
+          "primaryTagId": 450,
+          "series": "10187",
+          "createdAt": "2025-11-05T19:27:45.399303Z"
+        },
+        "seriesSlug": "nfl-2026",
+        "startTime": "2026-09-13T17:00:00Z",
+        "teams": [
+          {
+            "name": "Baltimore Ravens",
+            "alias": "Ravens",
+            "abbreviation": "bal",
+            "league": "nfl"
+          },
+          {
+            "name": "Indianapolis Colts",
+            "alias": "Colts",
+            "abbreviation": "ind",
+            "league": "nfl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "nfl"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "nfl-gameday"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "nfl-bal-ind-2026-09-13",
+        "id": "3335164",
+        "question": "Ravens vs. Colts",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-13 17:00:00+00",
+        "outcomes": "[\"Ravens\", \"Colts\"]",
+        "clobTokenIds": "[\"100851132542340394038916345715769912495135021067572506303645946689643832920092\", \"44719921932705648454884667065153162974372878642140043599541761718260812107604\"]",
+        "description": "In the upcoming NFL game, scheduled for September 13 at 1:00PM ET:\nIf Ravens wins, the market will resolve to \"Ravens\".\nIf Colts wins, the market will resolve to \"Colts\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely or ends in a tie, with no make-up game, this market will resolve 50-50.",
+        "resolutionSource": "https://www.nfl.com/scores",
+        "closed": false,
+        "events": [
+          {
+            "slug": "nfl-bal-ind-2026-09-13"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "nfl-bal-ind-2026-09-13",
+        "title": "Baltimore vs. Indianapolis",
+        "seriesSlug": "nfl-2025",
+        "startTime": "2026-09-13T17:00:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Baltimore Ravens",
+            "alias": "Ravens",
+            "safeName": "Baltimore",
+            "abbreviation": "bal",
+            "league": "nfl"
+          },
+          {
+            "name": "Indianapolis Colts",
+            "alias": "Colts",
+            "safeName": "Indianapolis",
+            "abbreviation": "ind",
+            "league": "nfl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "nfl",
+            "league": {
+              "id": 1,
+              "name": "NFL",
+              "sportId": 3,
+              "tagId": 1,
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Rugby.png",
+              "resolution": "https://www.nfl.com/",
+              "ordering": "away",
+              "activeSeriesId": 2,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "nfl",
+              "abbreviation": "NFL"
+            }
+          },
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "football",
+            "sport": {
+              "id": 3,
+              "name": "Football",
+              "tagId": 13,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "football"
+            }
+          },
+          {
+            "slug": "week-01"
+          },
+          {
+            "slug": "week-1"
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-nfl-bal-ind-2026-09-13",
+            "id": "381955",
+            "question": "Who will win in the upcoming football event Baltimore Ravens vs Indianapolis Colts scheduled for September 13, 2026 at 5:00 PM UTC?",
+            "sportsMarketType": "football_team_full_game_winner",
+            "gameStartTime": "2026-09-13T17:00:00Z",
+            "outcomes": "[\"Colts\",\"Ravens\"]",
+            "description": "This market will settle to the winner of the Baltimore Ravens vs Indianapolis Colts NFL game scheduled for Sep 13, 2026. Overtime is included if played. If the game ends in a tie, the market will settle to $0.50. If the game is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from NFL.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Ravens",
+                "long": true,
+                "team": {
+                  "name": "Baltimore Ravens",
+                  "alias": "Ravens",
+                  "safeName": "Baltimore",
+                  "abbreviation": "bal",
+                  "league": "nfl"
+                }
+              },
+              {
+                "description": "Colts",
+                "long": false,
+                "team": {
+                  "name": "Indianapolis Colts",
+                  "alias": "Colts",
+                  "safeName": "Indianapolis",
+                  "abbreviation": "ind",
+                  "league": "nfl"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-nfl-bal-ind-2026-09-13",
+          "side": "yes"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "nfl-no-det-2026-09-13",
+      "token": "57523127424226766393056633014729010003110199810600081599665311101663846205585",
+      "outcome": "Saints",
+      "international_event": {
+        "slug": "nfl-no-det-2026-09-13",
+        "title": "Saints vs. Lions",
+        "sport": {
+          "id": 10,
+          "sport": "nfl",
+          "name": "NFL",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/nfl-helmet-blue-a1188621.png",
+          "resolution": "https://www.nfl.com/",
+          "ordering": "away",
+          "tags": "1,450,100639",
+          "primaryTagId": 450,
+          "series": "10187",
+          "createdAt": "2025-11-05T19:27:45.399303Z"
+        },
+        "seriesSlug": "nfl-2026",
+        "startTime": "2026-09-13T17:00:00Z",
+        "teams": [
+          {
+            "name": "New Orleans Saints",
+            "alias": "Saints",
+            "abbreviation": "no",
+            "league": "nfl"
+          },
+          {
+            "name": "Detroit Lions",
+            "alias": "Lions",
+            "abbreviation": "det",
+            "league": "nfl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "nfl"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "nfl-gameday"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "nfl-no-det-2026-09-13",
+        "id": "3335144",
+        "question": "Saints vs. Lions",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-13 17:00:00+00",
+        "outcomes": "[\"Saints\", \"Lions\"]",
+        "clobTokenIds": "[\"57523127424226766393056633014729010003110199810600081599665311101663846205585\", \"32059574265076269259476760399106103256517275484422576338566059365842580792146\"]",
+        "description": "In the upcoming NFL game, scheduled for September 13 at 1:00PM ET:\nIf Saints wins, the market will resolve to \"Saints\".\nIf Lions wins, the market will resolve to \"Lions\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely or ends in a tie, with no make-up game, this market will resolve 50-50.",
+        "resolutionSource": "https://www.nfl.com/scores",
+        "closed": false,
+        "events": [
+          {
+            "slug": "nfl-no-det-2026-09-13"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "nfl-no-det-2026-09-13",
+        "title": "New Orleans vs. Detroit",
+        "seriesSlug": "nfl-2025",
+        "startTime": "2026-09-13T17:00:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "New Orleans Saints",
+            "alias": "Saints",
+            "safeName": "New Orleans",
+            "abbreviation": "no",
+            "league": "nfl"
+          },
+          {
+            "name": "Detroit Lions",
+            "alias": "Lions",
+            "safeName": "Detroit",
+            "abbreviation": "det",
+            "league": "nfl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "nfl",
+            "league": {
+              "id": 1,
+              "name": "NFL",
+              "sportId": 3,
+              "tagId": 1,
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Rugby.png",
+              "resolution": "https://www.nfl.com/",
+              "ordering": "away",
+              "activeSeriesId": 2,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "nfl",
+              "abbreviation": "NFL"
+            }
+          },
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "football",
+            "sport": {
+              "id": 3,
+              "name": "Football",
+              "tagId": 13,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "football"
+            }
+          },
+          {
+            "slug": "week-01"
+          },
+          {
+            "slug": "week-1"
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-nfl-no-det-2026-09-13",
+            "id": "381961",
+            "question": "Who will win in the upcoming football event New Orleans Saints vs Detroit Lions scheduled for September 13, 2026 at 5:00 PM UTC?",
+            "sportsMarketType": "football_team_full_game_winner",
+            "gameStartTime": "2026-09-13T17:00:00Z",
+            "outcomes": "[\"Saints\",\"Lions\"]",
+            "description": "This market will settle to the winner of the New Orleans Saints vs Detroit Lions NFL game scheduled for Sep 13, 2026. Overtime is included if played. If the game ends in a tie, the market will settle to $0.50. If the game is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from NFL.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Saints",
+                "long": true,
+                "team": {
+                  "name": "New Orleans Saints",
+                  "alias": "Saints",
+                  "safeName": "New Orleans",
+                  "abbreviation": "no",
+                  "league": "nfl"
+                }
+              },
+              {
+                "description": "Lions",
+                "long": false,
+                "team": {
+                  "name": "Detroit Lions",
+                  "alias": "Lions",
+                  "safeName": "Detroit",
+                  "abbreviation": "det",
+                  "league": "nfl"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-nfl-no-det-2026-09-13",
+          "side": "yes"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "epl-tot-eve-2026-09-12",
+      "token": "90257630017214512440107144361542243716749282071657622271175000802052724669239",
+      "outcome": "Yes",
+      "international_event": {
+        "slug": "epl-tot-eve-2026-09-12",
+        "title": "Tottenham Hotspur FC vs. Everton FC",
+        "sport": {
+          "id": 2,
+          "sport": "epl",
+          "name": "Premier League",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/epl-24885021.png",
+          "resolution": "https://www.premierleague.com/",
+          "ordering": "home",
+          "tags": "1,82,306,100639,100350",
+          "primaryTagId": 306,
+          "series": "10188",
+          "createdAt": "2025-11-05T19:27:45.399303Z"
+        },
+        "seriesSlug": "premier-league-2025",
+        "startTime": "2026-09-12T16:30:00Z",
+        "teams": [
+          {
+            "name": "Tottenham Hotspur FC",
+            "alias": "Spurs",
+            "abbreviation": "tot",
+            "league": "epl"
+          },
+          {
+            "name": "Everton FC",
+            "alias": "Everton",
+            "abbreviation": "eve",
+            "league": "epl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "soccer"
+          },
+          {
+            "slug": "premier-league"
+          },
+          {
+            "slug": "EPL"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "epl-tot-eve-2026-09-12-tot",
+        "id": "3989327",
+        "question": "Will Tottenham Hotspur FC win on 2026-09-12?",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-12 16:30:00+00",
+        "outcomes": "[\"Yes\", \"No\"]",
+        "clobTokenIds": "[\"90257630017214512440107144361542243716749282071657622271175000802052724669239\", \"18011649576245006354585809735965144448118703899482328412586216854430716363905\"]",
+        "description": "In the upcoming game, scheduled for September 12, 2026\nIf Tottenham Hotspur FC wins, this market will resolve to \"Yes\".\nOtherwise, this market will resolve to \"No\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve \"No\".\nThis market refers only to the outcome within the first 90 minutes of regular play plus stoppage time.\n\nThe primary resolution source for this market is the official statistics of the event as recognized by the governing body or event organizers. However, if the governing body or event organizers have not published final match statistics within 2 hours after the event's conclusion, data from Flashscore may be used; if Flashscore data is unavailable, data from Sofascore may be used; if neither is available, a consensus of credible reporting may be used instead. All markets will settle based on the official final result as recognized by the governing body or event organizers. Revisions to officially declared final scores made after market resolution will not be accounted for in determining the outcome.",
+        "resolutionSource": "https://www.premierleague.com/",
+        "closed": false,
+        "groupItemTitle": "Tottenham Hotspur FC",
+        "events": [
+          {
+            "slug": "epl-tot-eve-2026-09-12"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "epl-tot-eve-2026-09-12",
+        "title": "Tottenham Hotspur FC vs. Everton FC",
+        "seriesSlug": "epl-2025",
+        "startTime": "2026-09-12T16:30:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Tottenham Hotspur FC",
+            "alias": "Spurs",
+            "safeName": "Tottenham Hotspur",
+            "abbreviation": "tot",
+            "league": "epl"
+          },
+          {
+            "name": "Everton FC",
+            "alias": "The Toffees",
+            "safeName": "Everton",
+            "abbreviation": "eve",
+            "league": "epl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "soccer",
+            "sport": {
+              "id": 2,
+              "name": "Soccer",
+              "tagId": 12,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "soccer",
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Soccer.png"
+            }
+          },
+          {
+            "slug": "epl",
+            "league": {
+              "id": 9,
+              "name": "EPL",
+              "sportId": 2,
+              "tagId": 17,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/EPL.png",
+              "ordering": "home",
+              "activeSeriesId": 11,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-10T20:11:18Z",
+              "slug": "epl"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "atc-epl-tot-eve-2026-09-12-tot",
+            "id": "673282",
+            "question": "Will Tottenham Hotspur FC win against Everton FC in the Premier League match scheduled for Sep 12, 2026?",
+            "sportsMarketType": "soccer_team_full_time_winner",
+            "gameStartTime": "2026-09-12T16:30:00Z",
+            "outcomes": "[\"Yes\",\"No\"]",
+            "description": "This market will settle to the winner at the end of 90 minutes plus stoppage time in the Tottenham Hotspur FC vs Everton FC Premier League match scheduled for 2026-09-12 12:30PM ET. If the match is tied following 90 minutes plus stoppage time, the market will settle to Tie. If the match is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from Premier League.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Yes",
+                "long": true,
+                "team": {
+                  "name": "Tottenham Hotspur FC",
+                  "alias": "Spurs",
+                  "safeName": "Tottenham Hotspur",
+                  "abbreviation": "tot",
+                  "league": "epl"
+                }
+              },
+              {
+                "description": "No",
+                "long": false,
+                "team": {
+                  "name": "Tottenham Hotspur FC",
+                  "alias": "Spurs",
+                  "safeName": "Tottenham Hotspur",
+                  "abbreviation": "tot",
+                  "league": "epl"
+                }
+              }
+            ]
+          },
+          {
+            "slug": "atc-epl-tot-eve-2026-09-12-draw",
+            "id": "673283",
+            "question": "Will the Premier League match Tottenham Hotspur FC vs Everton FC scheduled for Sep 12, 2026 end in a draw?",
+            "sportsMarketType": "soccer_team_full_time_winner",
+            "gameStartTime": "2026-09-12T16:30:00Z",
+            "outcomes": "[\"Yes\",\"No\"]",
+            "description": "This market will settle to the winner at the end of 90 minutes plus stoppage time in the Tottenham Hotspur FC vs Everton FC Premier League match scheduled for 2026-09-12 12:30PM ET. If the match is tied following 90 minutes plus stoppage time, the market will settle to Tie. If the match is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from Premier League.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Yes",
+                "long": true,
+                "team": null
+              },
+              {
+                "description": "No",
+                "long": false,
+                "team": null
+              }
+            ]
+          },
+          {
+            "slug": "atc-epl-tot-eve-2026-09-12-eve",
+            "id": "673284",
+            "question": "Will Everton FC win against Tottenham Hotspur FC in the Premier League match scheduled for Sep 12, 2026?",
+            "sportsMarketType": "soccer_team_full_time_winner",
+            "gameStartTime": "2026-09-12T16:30:00Z",
+            "outcomes": "[\"No\",\"Yes\"]",
+            "description": "This market will settle to the winner at the end of 90 minutes plus stoppage time in the Tottenham Hotspur FC vs Everton FC Premier League match scheduled for 2026-09-12 12:30PM ET. If the match is tied following 90 minutes plus stoppage time, the market will settle to Tie. If the match is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from Premier League.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Yes",
+                "long": true,
+                "team": {
+                  "name": "Everton FC",
+                  "alias": "The Toffees",
+                  "safeName": "Everton",
+                  "abbreviation": "eve",
+                  "league": "epl"
+                }
+              },
+              {
+                "description": "No",
+                "long": false,
+                "team": {
+                  "name": "Everton FC",
+                  "alias": "The Toffees",
+                  "safeName": "Everton",
+                  "abbreviation": "eve",
+                  "league": "epl"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "atc-epl-tot-eve-2026-09-12-tot",
+          "side": "yes"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "epl-lee-new-2026-09-14",
+      "token": "49234856737035716846492515255072919451827981802243577975672346778310229035936",
+      "outcome": "No",
+      "international_event": {
+        "slug": "epl-lee-new-2026-09-14",
+        "title": "Leeds United FC vs. Newcastle United FC",
+        "sport": {
+          "id": 2,
+          "sport": "epl",
+          "name": "Premier League",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/epl-24885021.png",
+          "resolution": "https://www.premierleague.com/",
+          "ordering": "home",
+          "tags": "1,82,306,100639,100350",
+          "primaryTagId": 306,
+          "series": "10188",
+          "createdAt": "2025-11-05T19:27:45.399303Z"
+        },
+        "seriesSlug": "premier-league-2025",
+        "startTime": "2026-09-14T19:00:00Z",
+        "teams": [
+          {
+            "name": "Leeds United FC",
+            "alias": "Leeds",
+            "abbreviation": "lee",
+            "league": "epl"
+          },
+          {
+            "name": "Newcastle United FC",
+            "alias": "Newcastle",
+            "abbreviation": "new",
+            "league": "epl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "soccer"
+          },
+          {
+            "slug": "premier-league"
+          },
+          {
+            "slug": "EPL"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "epl-lee-new-2026-09-14-draw",
+        "id": "4050636",
+        "question": "Will Leeds United FC vs. Newcastle United FC end in a draw?",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-14 19:00:00+00",
+        "outcomes": "[\"Yes\", \"No\"]",
+        "clobTokenIds": "[\"105705738393296319001301281891966624752469864556679084580199684895587387574982\", \"49234856737035716846492515255072919451827981802243577975672346778310229035936\"]",
+        "description": "In the upcoming game, scheduled for September 14, 2026\nIf the game ends in a draw, this market will resolve to \"Yes\".\nOtherwise, this market will resolve to \"No\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve to \"Yes\".\nThis market refers only to the outcome within the first 90 minutes of regular play plus stoppage time.\n\nThe primary resolution source for this market is the official statistics of the event as recognized by the governing body or event organizers. However, if the governing body or event organizers have not published final match statistics within 2 hours after the event's conclusion, data from Flashscore may be used; if Flashscore data is unavailable, data from Sofascore may be used; if neither is available, a consensus of credible reporting may be used instead. All markets will settle based on the official final result as recognized by the governing body or event organizers. Revisions to officially declared final scores made after market resolution will not be accounted for in determining the outcome. If no acceptable data is available within 24 hours of the event's conclusion, this market will resolve 50-50, or to \"Draw\" where applicable.",
+        "resolutionSource": "https://www.premierleague.com/",
+        "closed": false,
+        "groupItemTitle": "Draw (Leeds United FC vs. Newcastle United FC)",
+        "events": [
+          {
+            "slug": "epl-lee-new-2026-09-14"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "epl-lee-new-2026-09-14",
+        "title": "Leeds United FC vs. Newcastle United FC",
+        "seriesSlug": "epl-2025",
+        "startTime": "2026-09-14T19:00:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Leeds United FC",
+            "alias": "The Whites",
+            "safeName": "Leeds United",
+            "abbreviation": "lee",
+            "league": "epl"
+          },
+          {
+            "name": "Newcastle United FC",
+            "alias": "The Magpies",
+            "safeName": "Newcastle United",
+            "abbreviation": "new",
+            "league": "epl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "soccer",
+            "sport": {
+              "id": 2,
+              "name": "Soccer",
+              "tagId": 12,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "soccer",
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Soccer.png"
+            }
+          },
+          {
+            "slug": "epl",
+            "league": {
+              "id": 9,
+              "name": "EPL",
+              "sportId": 2,
+              "tagId": 17,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/EPL.png",
+              "ordering": "home",
+              "activeSeriesId": 11,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-10T20:11:18Z",
+              "slug": "epl"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "atc-epl-lee-new-2026-09-14-lee",
+            "id": "712393",
+            "question": "Will Leeds United FC win against Newcastle United FC in the Premier League match scheduled for Sep 14, 2026?",
+            "sportsMarketType": "soccer_team_full_time_winner",
+            "gameStartTime": "2026-09-14T19:00:00Z",
+            "outcomes": "[\"Yes\",\"No\"]",
+            "description": "This market will settle to the winner at the end of 90 minutes plus stoppage time in the Leeds United FC vs Newcastle United FC Premier League match scheduled for 2026-09-14 3:00PM ET. If the match is tied following 90 minutes plus stoppage time, the market will settle to Tie. If the match is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from Premier League.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Yes",
+                "long": true,
+                "team": {
+                  "name": "Leeds United FC",
+                  "alias": "The Whites",
+                  "safeName": "Leeds United",
+                  "abbreviation": "lee",
+                  "league": "epl"
+                }
+              },
+              {
+                "description": "No",
+                "long": false,
+                "team": {
+                  "name": "Leeds United FC",
+                  "alias": "The Whites",
+                  "safeName": "Leeds United",
+                  "abbreviation": "lee",
+                  "league": "epl"
+                }
+              }
+            ]
+          },
+          {
+            "slug": "atc-epl-lee-new-2026-09-14-draw",
+            "id": "712394",
+            "question": "Will the Premier League match Leeds United FC vs Newcastle United FC scheduled for Sep 14, 2026 end in a draw?",
+            "sportsMarketType": "soccer_team_full_time_winner",
+            "gameStartTime": "2026-09-14T19:00:00Z",
+            "outcomes": "[\"Yes\",\"No\"]",
+            "description": "This market will settle to the winner at the end of 90 minutes plus stoppage time in the Leeds United FC vs Newcastle United FC Premier League match scheduled for 2026-09-14 3:00PM ET. If the match is tied following 90 minutes plus stoppage time, the market will settle to Tie. If the match is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from Premier League.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Yes",
+                "long": true,
+                "team": null
+              },
+              {
+                "description": "No",
+                "long": false,
+                "team": null
+              }
+            ]
+          },
+          {
+            "slug": "atc-epl-lee-new-2026-09-14-new",
+            "id": "712395",
+            "question": "Will Newcastle United FC win against Leeds United FC in the Premier League match scheduled for Sep 14, 2026?",
+            "sportsMarketType": "soccer_team_full_time_winner",
+            "gameStartTime": "2026-09-14T19:00:00Z",
+            "outcomes": "[\"No\",\"Yes\"]",
+            "description": "This market will settle to the winner at the end of 90 minutes plus stoppage time in the Leeds United FC vs Newcastle United FC Premier League match scheduled for 2026-09-14 3:00PM ET. If the match is tied following 90 minutes plus stoppage time, the market will settle to Tie. If the match is delayed, postponed, or suspended and not rescheduled to a date within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from Premier League.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Yes",
+                "long": true,
+                "team": {
+                  "name": "Newcastle United FC",
+                  "alias": "The Magpies",
+                  "safeName": "Newcastle United",
+                  "abbreviation": "new",
+                  "league": "epl"
+                }
+              },
+              {
+                "description": "No",
+                "long": false,
+                "team": {
+                  "name": "Newcastle United FC",
+                  "alias": "The Magpies",
+                  "safeName": "Newcastle United",
+                  "abbreviation": "new",
+                  "league": "epl"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "atc-epl-lee-new-2026-09-14-draw",
+          "side": "no"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "ufc-ale17-man3-2026-09-12",
+      "token": "69292896241444760913190719938256282570412729706067946667504235138139257338193",
+      "outcome": "Alexa Grasso",
+      "international_event": {
+        "slug": "ufc-ale17-man3-2026-09-12",
+        "title": "Noche UFC: Alexa Grasso vs. Manon Fiorot (Women's Flyweight, Main Card)",
+        "sport": {
+          "id": 48,
+          "sport": "ufc",
+          "name": "UFC",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/ufc-40ea1d2a.png",
+          "resolution": "https://www.ufc.com/",
+          "ordering": "home",
+          "tags": "1,100639,279",
+          "primaryTagId": 279,
+          "series": "10500",
+          "createdAt": "2025-11-07T21:10:21.566359Z"
+        },
+        "seriesSlug": "ufc",
+        "startTime": "2026-09-12T18:00:00Z",
+        "teams": [
+          {
+            "name": "Alexa Grasso",
+            "abbreviation": "ale17",
+            "league": "ufc"
+          },
+          {
+            "name": "Manon Fiorot",
+            "abbreviation": "man3",
+            "league": "ufc"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "ufc"
+          },
+          {
+            "slug": "games"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "ufc-ale17-man3-2026-09-12",
+        "id": "3985535",
+        "question": "Noche UFC: Alexa Grasso vs. Manon Fiorot (Women's Flyweight, Main Card)",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-12 18:00:00+00",
+        "outcomes": "[\"Alexa Grasso\", \"Manon Fiorot\"]",
+        "clobTokenIds": "[\"69292896241444760913190719938256282570412729706067946667504235138139257338193\", \"97947684462559840069849867533102187681155376517786068441174854169587111723645\"]",
+        "description": "This market will resolve to \"Alexa Grasso\" if Alexa Grasso is officially declared the winner of the fight against Manon Fiorot at Noche UFC: Silva vs. Delgado, scheduled for September 12, 2026.\n\nIt will resolve to \"Manon Fiorot\" if Manon Fiorot is officially declared the winner.\n\nIf the fight is declared a draw or technical draw, ruled a No Contest, not scored, canceled, or postponed beyond September 26, 2026, this market will resolve \"50-50.\"\n\nThe resolution source for this market will be official information from the UFC.",
+        "resolutionSource": "https://www.ufc.com/events",
+        "closed": false,
+        "groupItemTitle": "Alexa Grasso vs. Manon Fiorot",
+        "events": [
+          {
+            "slug": "ufc-ale17-man3-2026-09-12"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "ufc-manfio-alegra-2026-09-12",
+        "title": "Manon Fiorot vs. Alexa Grasso",
+        "seriesSlug": "ufc-2025",
+        "startTime": "2026-09-12T22:30:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Manon Fiorot",
+            "alias": "Manon Fiorot",
+            "safeName": "Manon Fiorot",
+            "abbreviation": "manfio",
+            "league": "ufc"
+          },
+          {
+            "name": "Alexa Grasso",
+            "alias": "Alexa Grasso",
+            "safeName": "Alexa Grasso",
+            "abbreviation": "alegra",
+            "league": "ufc"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "ufc",
+            "league": {
+              "id": 6,
+              "name": "UFC",
+              "sportId": 6,
+              "tagId": 9,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/UFC-0de60b108f.png",
+              "resolution": "https://www.ufc.com/",
+              "ordering": "home",
+              "activeSeriesId": 8,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "ufc",
+              "abbreviation": "UFC"
+            }
+          },
+          {
+            "slug": "mma",
+            "sport": {
+              "id": 6,
+              "name": "MMA",
+              "tagId": 16,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "mma",
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/UFC-0de60b108f.png"
+            }
+          },
+          {
+            "slug": "ufc-main-card"
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-ufc-manfio-alegra-2026-09-12",
+            "id": "428393",
+            "question": "Who will win in the upcoming mma event Manon Fiorot vs Alexa Grasso scheduled for September 12, 2026 at 9:40 PM UTC?",
+            "sportsMarketType": "ufc_fight_winner",
+            "gameStartTime": "2026-09-12T22:30:00Z",
+            "outcomes": "[\"Alexa Grasso\",\"Manon Fiorot\"]",
+            "description": "This market will settle to the winner of the Manon Fiorot vs Alexa Grasso UFC fight scheduled for September 12 at 2:00PM ET. If the fight ends in a draw or is declared a no contest, the market will settle to $0.50. If the fight is cancelled before the opening bell, the market will settle to the last fair market price. If the fight is not held within two weeks of the originally scheduled date, the market will settle to the last fair market price. Outcome sourced from UFC.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Manon Fiorot",
+                "long": true,
+                "team": {
+                  "name": "Manon Fiorot",
+                  "alias": "Manon Fiorot",
+                  "safeName": "Manon Fiorot",
+                  "abbreviation": "manfio",
+                  "league": "ufc"
+                }
+              },
+              {
+                "description": "Alexa Grasso",
+                "long": false,
+                "team": {
+                  "name": "Alexa Grasso",
+                  "alias": "Alexa Grasso",
+                  "safeName": "Alexa Grasso",
+                  "abbreviation": "alegra",
+                  "league": "ufc"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [],
+      "expected_near": [
+        {
+          "slug": "aec-ufc-manfio-alegra-2026-09-12",
+          "side": "no"
+        }
+      ]
+    },
+    {
+      "label": "atp-passaro-varilla-2026-09-10",
+      "token": "18791047169431729450815820006126253384185951639312450806644736151298688610678",
+      "outcome": "Juan Pablo Varillas",
+      "international_event": {
+        "slug": "atp-passaro-varilla-2026-09-10",
+        "title": "Genoa: Francesco Passaro vs Juan Pablo Varillas",
+        "sport": {
+          "id": 45,
+          "sport": "atp",
+          "name": "ATP Tour",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/atp-b3819f2f.png",
+          "resolution": "https://www.atptour.com/en/scores/current",
+          "ordering": "home",
+          "tags": "1,864,100639,101232",
+          "primaryTagId": 101232,
+          "series": "10365",
+          "createdAt": "2025-11-07T21:08:59.561861Z"
+        },
+        "seriesSlug": "atp",
+        "startTime": "2026-09-10T19:05:00Z",
+        "teams": [
+          {
+            "name": "Francesco Passaro",
+            "alias": "F. Passaro",
+            "abbreviation": "passaro",
+            "league": "atp"
+          },
+          {
+            "name": "Juan Pablo Varillas",
+            "alias": "J. Varillas",
+            "abbreviation": "varilla",
+            "league": "atp"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "tennis"
+          },
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "atp-passaro-varilla-2026-09-10",
+        "id": "4391262",
+        "question": "Genoa: Francesco Passaro vs Juan Pablo Varillas",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-10 19:05:00+00",
+        "outcomes": "[\"Francesco Passaro\", \"Juan Pablo Varillas\"]",
+        "clobTokenIds": "[\"17464427543784268049363604484436030086010983179238413548213830339010482422242\", \"18791047169431729450815820006126253384185951639312450806644736151298688610678\"]",
+        "description": "This market refers to the tennis match between Francesco Passaro and Juan Pablo Varillas in the Genoa, originally scheduled for September 10, 2026 at 4:00AM ET.\n\nThis market will resolve to 'Francesco Passaro' if Francesco Passaro advances against Juan Pablo Varillas.\n\nThis market will resolve to 'Juan Pablo Varillas' if Juan Pablo Varillas advances against Francesco Passaro.\n\nIf the match is canceled (not played at all), ends in a tie, or a winner has not been determined by September 24, 2026, 11:59 PM ET (14 days after the scheduled start), this market will resolve to 50-50.\n\nIf the match begins but is not completed, and one player advances due to the opponent's retirement, default, or disqualification, this market will resolve to the player who advances.\n\nIf the match ends in a walkover (player withdraws before the start and the other advances automatically), this market will resolve to 50-50.\n\nThe primary resolution source will be official information from the ATP Tour. A consensus of credible reporting may also be used.",
+        "resolutionSource": "https://www.atptour.com/en/scores/current",
+        "closed": false,
+        "events": [
+          {
+            "slug": "atp-passaro-varilla-2026-09-10"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "atp-frapas-juavar-2026-09-09",
+        "title": "Francesco Passaro vs. Juan Pablo Varillas",
+        "seriesSlug": "atp-2026",
+        "startTime": "2026-09-10T19:10:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Francesco Passaro",
+            "alias": "Francesco Passaro",
+            "safeName": "Francesco Passaro",
+            "abbreviation": "frapas",
+            "league": "atp"
+          },
+          {
+            "name": "Juan Pablo Varillas",
+            "alias": "Juan Pablo Varillas",
+            "safeName": "Juan Pablo Varillas",
+            "abbreviation": "juavar",
+            "league": "atp"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "tennis",
+            "sport": {
+              "id": 8,
+              "name": "Tennis",
+              "tagId": 22,
+              "createdAt": "2026-03-20T19:11:04Z",
+              "slug": "tennis",
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Tennis.png"
+            }
+          },
+          {
+            "slug": "atp",
+            "league": {
+              "id": 12,
+              "name": "ATP",
+              "sportId": 8,
+              "tagId": 23,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/tennis/APT-NEW.png",
+              "ordering": "home",
+              "activeSeriesId": 16,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-20T19:11:04Z",
+              "slug": "atp"
+            }
+          },
+          {
+            "slug": "tennis-challenger-genoa"
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-atp-frapas-juavar-2026-09-09",
+            "id": "740780",
+            "question": "Francesco Passaro vs. Juan Pablo Varillas",
+            "sportsMarketType": "tennis_match_winner",
+            "gameStartTime": "2026-09-10T19:10:00Z",
+            "outcomes": "[\"Juan Pablo Varillas\",\"Francesco Passaro\"]",
+            "description": "This market will settle to the winner of the Francesco Passaro vs Juan Pablo Varillas ATP match scheduled for September 9 at 11:00AM. If the match does not begin due to a walkover, forfeit, injury, or any other cancellation prior to the first point being played, the market will settle to fair market price. If a player retires during the match, the opponent will be recorded as the winner. Outcome sourced from ATP.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Francesco Passaro",
+                "long": true,
+                "team": {
+                  "name": "Francesco Passaro",
+                  "alias": "Francesco Passaro",
+                  "safeName": "Francesco Passaro",
+                  "abbreviation": "frapas",
+                  "league": "atp"
+                }
+              },
+              {
+                "description": "Juan Pablo Varillas",
+                "long": false,
+                "team": {
+                  "name": "Juan Pablo Varillas",
+                  "alias": "Juan Pablo Varillas",
+                  "safeName": "Juan Pablo Varillas",
+                  "abbreviation": "juavar",
+                  "league": "atp"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [],
+      "expected_near": [
+        {
+          "slug": "aec-atp-frapas-juavar-2026-09-09",
+          "side": "no"
+        }
+      ],
+      "note": "Replay of collected event metadata locates this time-mismatched candidate; the later live search returned no candidate."
+    },
+    {
+      "label": "atp-hemery-lajovic-2026-09-10",
+      "token": "109709869865497915751910937140952982937691873253580396081017676083045035753922",
+      "outcome": "Dusan Lajovic",
+      "international_event": {
+        "slug": "atp-hemery-lajovic-2026-09-10",
+        "title": "Seville: Calvin Hemery vs Dusan Lajovic",
+        "sport": {
+          "id": 45,
+          "sport": "atp",
+          "name": "ATP Tour",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/atp-b3819f2f.png",
+          "resolution": "https://www.atptour.com/en/scores/current",
+          "ordering": "home",
+          "tags": "1,864,100639,101232",
+          "primaryTagId": 101232,
+          "series": "10365",
+          "createdAt": "2025-11-07T21:08:59.561861Z"
+        },
+        "seriesSlug": "atp",
+        "startTime": "2026-09-10T19:35:00Z",
+        "teams": [
+          {
+            "name": "Calvin Hemery",
+            "alias": "C. Hemery",
+            "abbreviation": "hemery",
+            "league": "atp"
+          },
+          {
+            "name": "Dusan Lajovic",
+            "alias": "D. Lajovic",
+            "abbreviation": "lajovic",
+            "league": "atp"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "tennis"
+          },
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "atp-hemery-lajovic-2026-09-10",
+        "id": "4391264",
+        "question": "Seville: Calvin Hemery vs Dusan Lajovic",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-09-10 19:35:00+00",
+        "outcomes": "[\"Calvin Hemery\", \"Dusan Lajovic\"]",
+        "clobTokenIds": "[\"39758756007583519143822086181637179877825002781430025287731383814068511775343\", \"109709869865497915751910937140952982937691873253580396081017676083045035753922\"]",
+        "description": "This market refers to the tennis match between Calvin Hemery and Dusan Lajovic in the Seville, originally scheduled for September 10, 2026 at 5:00AM ET.\n\nThis market will resolve to 'Calvin Hemery' if Calvin Hemery advances against Dusan Lajovic.\n\nThis market will resolve to 'Dusan Lajovic' if Dusan Lajovic advances against Calvin Hemery.\n\nIf the match is canceled (not played at all), ends in a tie, or a winner has not been determined by September 24, 2026, 11:59 PM ET (14 days after the scheduled start), this market will resolve to 50-50.\n\nIf the match begins but is not completed, and one player advances due to the opponent's retirement, default, or disqualification, this market will resolve to the player who advances.\n\nIf the match ends in a walkover (player withdraws before the start and the other advances automatically), this market will resolve to 50-50.\n\nThe primary resolution source will be official information from the ATP Tour. A consensus of credible reporting may also be used.",
+        "resolutionSource": "https://www.atptour.com/en/scores/current",
+        "closed": false,
+        "events": [
+          {
+            "slug": "atp-hemery-lajovic-2026-09-10"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "atp-calhem-duslaj-2026-09-10",
+        "title": "Calvin Hemery vs. Dusan Lajovic",
+        "seriesSlug": "atp-2026",
+        "startTime": "2026-09-10T19:45:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Calvin Hemery",
+            "alias": "Calvin Hemery",
+            "safeName": "Calvin Hemery",
+            "abbreviation": "calhem",
+            "league": "atp"
+          },
+          {
+            "name": "Dusan Lajovic",
+            "alias": "Dusan Lajovic",
+            "safeName": "Dusan Lajovic",
+            "abbreviation": "duslaj",
+            "league": "atp"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "tennis",
+            "sport": {
+              "id": 8,
+              "name": "Tennis",
+              "tagId": 22,
+              "createdAt": "2026-03-20T19:11:04Z",
+              "slug": "tennis",
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Tennis.png"
+            }
+          },
+          {
+            "slug": "atp",
+            "league": {
+              "id": 12,
+              "name": "ATP",
+              "sportId": 8,
+              "tagId": 23,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/random-team-images/tennis/APT-NEW.png",
+              "ordering": "home",
+              "activeSeriesId": 16,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-20T19:11:04Z",
+              "slug": "atp"
+            }
+          },
+          {
+            "slug": "tennis-challenger-seville"
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-atp-calhem-duslaj-2026-09-10",
+            "id": "742897",
+            "question": "Calvin Hemery vs. Dusan Lajovic",
+            "sportsMarketType": "tennis_match_winner",
+            "gameStartTime": "2026-09-10T19:45:00Z",
+            "outcomes": "[\"Calvin Hemery\",\"Dusan Lajovic\"]",
+            "description": "This market will settle to the winner of the Calvin Hemery vs Dusan Lajovic ATP match scheduled for September 10 at 3:35PM. If the match does not begin due to a walkover, forfeit, injury, or any other cancellation prior to the first point being played, the market will settle to fair market price. If a player retires during the match, the opponent will be recorded as the winner. Outcome sourced from ATP.",
+            "closed": false,
+            "marketSides": [
+              {
+                "description": "Calvin Hemery",
+                "long": true,
+                "team": {
+                  "name": "Calvin Hemery",
+                  "alias": "Calvin Hemery",
+                  "safeName": "Calvin Hemery",
+                  "abbreviation": "calhem",
+                  "league": "atp"
+                }
+              },
+              {
+                "description": "Dusan Lajovic",
+                "long": false,
+                "team": {
+                  "name": "Dusan Lajovic",
+                  "alias": "Dusan Lajovic",
+                  "safeName": "Dusan Lajovic",
+                  "abbreviation": "duslaj",
+                  "league": "atp"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [],
+      "expected_near": [
+        {
+          "slug": "aec-atp-calhem-duslaj-2026-09-10",
+          "side": "no"
+        }
+      ]
+    },
+    {
+      "label": "nba-dal-was-2025-11-09",
+      "token": "10903061921083958464335554432785703077072806691695938199772175167285146772073",
+      "outcome": "Wizards",
+      "international_event": {
+        "slug": "nba-dal-was-2025-11-09",
+        "title": "Mavericks vs. Wizards",
+        "seriesSlug": "nba-2026",
+        "startTime": "2025-11-09T00:00:00Z",
+        "teams": [
+          {
+            "name": "Mavericks",
+            "alias": "Mavericks",
+            "abbreviation": "dal",
+            "league": "nba"
+          },
+          {
+            "name": "Wizards",
+            "alias": "Wizards",
+            "abbreviation": "was",
+            "league": "nba"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "nba"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "basketball"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "nba-dal-was-2025-11-09",
+        "id": "661731",
+        "question": "Mavericks vs. Wizards",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2025-11-09 00:00:00+00",
+        "outcomes": "[\"Mavericks\", \"Wizards\"]",
+        "clobTokenIds": "[\"48661077820566079138552433806500100524728101339553391440454697617048170236328\", \"10903061921083958464335554432785703077072806691695938199772175167285146772073\"]",
+        "description": "In the upcoming NBA game, scheduled for November 8 at 7:00PM ET:\nIf the Mavericks win, the market will resolve to \"Mavericks\".\nIf the Wizards win, the market will resolve to \"Wizards\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.\nThe result will be determined based on the final score including any overtime periods.",
+        "resolutionSource": "https://www.nba.com/",
+        "closed": true,
+        "events": [
+          {
+            "slug": "nba-dal-was-2025-11-09"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "aec-nba-dal-was-2025-11-08",
+        "title": "Dallas vs. Washington",
+        "seriesSlug": "nba-2025",
+        "startTime": "2025-11-09T00:00:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Mavericks",
+            "alias": "Mavericks",
+            "safeName": "Dallas",
+            "abbreviation": "dal",
+            "league": "nba"
+          },
+          {
+            "name": "Wizards",
+            "alias": "Wizards",
+            "safeName": "Washington",
+            "abbreviation": "was",
+            "league": "nba"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "nba",
+            "league": {
+              "id": 2,
+              "name": "NBA",
+              "sportId": 1,
+              "tagId": 5,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nba-new.png",
+              "resolution": "https://www.nba.com/",
+              "ordering": "away",
+              "activeSeriesId": 4,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "nba",
+              "abbreviation": "NBA"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-nba-dal-was-2025-11-08",
+            "id": "45",
+            "question": "Dallas vs. Washington",
+            "sportsMarketType": "moneyline",
+            "gameStartTime": "2025-11-09T00:00:00Z",
+            "outcomes": "[\"Mavericks\",\"Wizards\"]",
+            "description": "In the upcoming basketball game, scheduled for November 8 at 7:00PM ET:\nIf Dallas wins, the market will resolve to \u201cDallas\u201d.\nIf Washington wins, the market will resolve to \u201cWashington\u201d.\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+            "closed": true,
+            "marketSides": [
+              {
+                "description": "Mavericks",
+                "long": true,
+                "team": {
+                  "name": "Mavericks",
+                  "alias": "Mavericks",
+                  "safeName": "Dallas",
+                  "abbreviation": "dal",
+                  "league": "nba"
+                }
+              },
+              {
+                "description": "Wizards",
+                "long": false,
+                "team": {
+                  "name": "Wizards",
+                  "alias": "Wizards",
+                  "safeName": "Washington",
+                  "abbreviation": "was",
+                  "league": "nba"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-nba-dal-was-2025-11-08",
+          "side": "no"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "nba-gsw-sas-2025-11-12",
+      "token": "66041836252763859063758647881580879411203980449425358332487136863019269574493",
+      "outcome": "Spurs",
+      "international_event": {
+        "slug": "nba-gsw-sas-2025-11-12",
+        "title": "Warriors vs. Spurs",
+        "seriesSlug": "nba-2026",
+        "startTime": "2025-11-13T01:00:00Z",
+        "teams": [
+          {
+            "name": "Warriors",
+            "alias": "Warriors",
+            "abbreviation": "gsw",
+            "league": "nba"
+          },
+          {
+            "name": "Spurs",
+            "alias": "Spurs",
+            "abbreviation": "sas",
+            "league": "nba"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "nba"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "basketball"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "nba-gsw-sas-2025-11-12",
+        "id": "667704",
+        "question": "Warriors vs. Spurs",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2025-11-13 01:00:00+00",
+        "outcomes": "[\"Warriors\", \"Spurs\"]",
+        "clobTokenIds": "[\"87557724076820928994783867745818152189716180251616873398996068585146796030828\", \"66041836252763859063758647881580879411203980449425358332487136863019269574493\"]",
+        "description": "In the upcoming NBA game, scheduled for November 12 at 8:00PM ET:\nIf the Warriors win, the market will resolve to \"Warriors\".\nIf the Spurs win, the market will resolve to \"Spurs\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.\nThe result will be determined based on the final score including any overtime periods.",
+        "resolutionSource": "https://www.nba.com/",
+        "closed": true,
+        "events": [
+          {
+            "slug": "nba-gsw-sas-2025-11-12"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "aec-nba-gs-sa-2025-11-12",
+        "title": "Golden State vs. San Antonio",
+        "seriesSlug": "nba-2025",
+        "startTime": "2025-11-13T01:00:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Warriors",
+            "alias": "Warriors",
+            "safeName": "Golden State",
+            "abbreviation": "gs",
+            "league": "nba"
+          },
+          {
+            "name": "Spurs",
+            "alias": "Spurs",
+            "safeName": "San Antonio",
+            "abbreviation": "sa",
+            "league": "nba"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "nba",
+            "league": {
+              "id": 2,
+              "name": "NBA",
+              "sportId": 1,
+              "tagId": 5,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nba-new.png",
+              "resolution": "https://www.nba.com/",
+              "ordering": "away",
+              "activeSeriesId": 4,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "nba",
+              "abbreviation": "NBA"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-nba-gs-sa-2025-11-12",
+            "id": "75",
+            "question": "Golden State vs. San Antonio",
+            "sportsMarketType": "moneyline",
+            "gameStartTime": "2025-11-13T01:00:00Z",
+            "outcomes": "[\"Spurs\",\"Warriors\"]",
+            "description": "In the upcoming basketball game, scheduled for November 12 at 8:00PM ET:\nIf Golden State wins, the market will resolve to \u201cGolden State\u201d.\nIf San Antonio wins, the market will resolve to \u201cSan Antonio\u201d.\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+            "closed": true,
+            "marketSides": [
+              {
+                "description": "Warriors",
+                "long": true,
+                "team": {
+                  "name": "Warriors",
+                  "alias": "Warriors",
+                  "safeName": "Golden State",
+                  "abbreviation": "gs",
+                  "league": "nba"
+                }
+              },
+              {
+                "description": "Spurs",
+                "long": false,
+                "team": {
+                  "name": "Spurs",
+                  "alias": "Spurs",
+                  "safeName": "San Antonio",
+                  "abbreviation": "sa",
+                  "league": "nba"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-nba-gs-sa-2025-11-12",
+          "side": "no"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "nhl-buf-wpg-2025-12-06",
+      "token": "46315037020056803361875889599276573486125822109408376171923901297348471056435",
+      "outcome": "Jets",
+      "international_event": {
+        "slug": "nhl-buf-wpg-2025-12-06",
+        "title": "Sabres vs. Jets",
+        "seriesSlug": "nhl-2026",
+        "startTime": "2025-12-06T00:00:00Z",
+        "teams": [
+          {
+            "name": "Sabres",
+            "alias": "Sabres",
+            "abbreviation": "buf",
+            "league": "nhl"
+          },
+          {
+            "name": "Jets",
+            "alias": "Jets",
+            "abbreviation": "wpg",
+            "league": "nhl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "nhl"
+          },
+          {
+            "slug": "games"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "nhl-buf-wpg-2025-12-06",
+        "id": "671277",
+        "question": "Sabres vs. Jets",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2025-12-06 00:00:00+00",
+        "outcomes": "[\"Sabres\", \"Jets\"]",
+        "clobTokenIds": "[\"100760056179024802728324658423309120059701936418729942658997930106218693794903\", \"46315037020056803361875889599276573486125822109408376171923901297348471056435\"]",
+        "description": "In the upcoming NHL game, scheduled for December 5 at 7:00PM ET:\nIf the Sabres win, the market will resolve to \"Sabres\".\nIf the Jets win, the market will resolve to \"Jets\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.\nThe result will be determined based on the final score including any overtime periods and shootouts. In the event of a shootout, one goal will be added to the winning team's score for the purpose of resolution.",
+        "resolutionSource": "https://www.nhl.com/scores",
+        "closed": true,
+        "events": [
+          {
+            "slug": "nhl-buf-wpg-2025-12-06"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "aec-nhl-buf-wpg-2025-12-06",
+        "title": "Sabres vs. Jets",
+        "seriesSlug": "nhl-2025",
+        "startTime": "2025-12-06T00:00:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Sabres",
+            "alias": "Sabres",
+            "safeName": "Buffalo Sabres",
+            "abbreviation": "buf",
+            "league": "nhl"
+          },
+          {
+            "name": "Jets",
+            "alias": "Jets",
+            "safeName": "Winnipeg Jets",
+            "abbreviation": "wpg",
+            "league": "nhl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "nhl",
+            "league": {
+              "id": 3,
+              "name": "NHL",
+              "sportId": 4,
+              "tagId": 7,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+              "resolution": "https://www.nhl.com/",
+              "ordering": "away",
+              "activeSeriesId": 6,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "nhl",
+              "abbreviation": "NHL"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-nhl-buf-wpg-2025-12-06",
+            "id": "328",
+            "question": "Sabres vs. Jets",
+            "sportsMarketType": "moneyline",
+            "gameStartTime": "2025-12-06T00:00:00Z",
+            "outcomes": "[\"Sabres\",\"Jets\"]",
+            "description": "Who will win on the upcoming ice hockey game, scheduled for December 5 at 7:00PM ET? Sabres or Jets.\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+            "closed": true,
+            "marketSides": [
+              {
+                "description": "Sabres",
+                "long": true,
+                "team": {
+                  "name": "Sabres",
+                  "alias": "Sabres",
+                  "safeName": "Buffalo Sabres",
+                  "abbreviation": "buf",
+                  "league": "nhl"
+                }
+              },
+              {
+                "description": "Jets",
+                "long": false,
+                "team": {
+                  "name": "Jets",
+                  "alias": "Jets",
+                  "safeName": "Winnipeg Jets",
+                  "abbreviation": "wpg",
+                  "league": "nhl"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-nhl-buf-wpg-2025-12-06",
+          "side": "no"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "nhl-min-sea-2025-12-09",
+      "token": "3411755308032819792637684552367676463503745168728900426460587406526206878956",
+      "outcome": "Wild",
+      "international_event": {
+        "slug": "nhl-min-sea-2025-12-09",
+        "title": "Wild vs. Kraken",
+        "seriesSlug": "nhl-2026",
+        "startTime": "2025-12-09T03:00:00Z",
+        "teams": [
+          {
+            "name": "Wild",
+            "alias": "Wild",
+            "abbreviation": "min",
+            "league": "nhl"
+          },
+          {
+            "name": "Kraken",
+            "alias": "Kraken",
+            "abbreviation": "sea",
+            "league": "nhl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "nhl"
+          },
+          {
+            "slug": "games"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "nhl-min-sea-2025-12-09",
+        "id": "676498",
+        "question": "Wild vs. Kraken",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2025-12-09 03:00:00+00",
+        "outcomes": "[\"Wild\", \"Kraken\"]",
+        "clobTokenIds": "[\"3411755308032819792637684552367676463503745168728900426460587406526206878956\", \"18485715566243689012456670155761276447160398199858016767795349942880983144697\"]",
+        "description": "In the upcoming NHL game, scheduled for December 8 at 10:00PM ET:\nIf the Wild win, the market will resolve to \"Wild\".\nIf the Kraken win, the market will resolve to \"Kraken\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.\nThe result will be determined based on the final score including any overtime periods and shootouts. In the event of a shootout, one goal will be added to the winning team's score for the purpose of resolution.",
+        "resolutionSource": "https://www.nhl.com/scores",
+        "closed": true,
+        "events": [
+          {
+            "slug": "nhl-min-sea-2025-12-09"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "aec-nhl-min-sea-2025-12-09",
+        "title": "Wild vs. Kraken",
+        "seriesSlug": "nhl-2025",
+        "startTime": "2025-12-09T03:00:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Wild",
+            "alias": "Wild",
+            "safeName": "Minnesota Wild",
+            "abbreviation": "min",
+            "league": "nhl"
+          },
+          {
+            "name": "Kraken",
+            "alias": "Kraken",
+            "safeName": "Seattle Kraken",
+            "abbreviation": "sea",
+            "league": "nhl"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "nhl",
+            "league": {
+              "id": 3,
+              "name": "NHL",
+              "sportId": 4,
+              "tagId": 7,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/nhl-new.png",
+              "resolution": "https://www.nhl.com/",
+              "ordering": "away",
+              "activeSeriesId": 6,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "nhl",
+              "abbreviation": "NHL"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-nhl-min-sea-2025-12-09",
+            "id": "340",
+            "question": "Wild vs. Kraken",
+            "sportsMarketType": "moneyline",
+            "gameStartTime": "2025-12-09T03:00:00Z",
+            "outcomes": "[\"Wild\",\"Kraken\"]",
+            "description": "Who will win on the upcoming ice hockey game, scheduled for December 8 at 10:00PM ET? Wild or Kraken.\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.",
+            "closed": true,
+            "marketSides": [
+              {
+                "description": "Wild",
+                "long": true,
+                "team": {
+                  "name": "Wild",
+                  "alias": "Wild",
+                  "safeName": "Minnesota Wild",
+                  "abbreviation": "min",
+                  "league": "nhl"
+                }
+              },
+              {
+                "description": "Kraken",
+                "long": false,
+                "team": {
+                  "name": "Kraken",
+                  "alias": "Kraken",
+                  "safeName": "Seattle Kraken",
+                  "abbreviation": "sea",
+                  "league": "nhl"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-nhl-min-sea-2025-12-09",
+          "side": "yes"
+        }
+      ],
+      "expected_near": []
+    },
+    {
+      "label": "wnba-dal-min-2026-06-09",
+      "token": "22420226122664148401265836535921359260878042439549549465512527171207016034284",
+      "outcome": "Dallas Wings",
+      "international_event": {
+        "slug": "wnba-dal-min-2026-06-09",
+        "title": "Dallas Wings vs. Minnesota Lynx",
+        "sport": {
+          "id": 6,
+          "sport": "wnba",
+          "name": "WNBA",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-icons/wnba.png",
+          "resolution": "https://www.wnba.com/",
+          "ordering": "away",
+          "tags": "1,100639,100254",
+          "primaryTagId": 100254,
+          "series": "10105",
+          "createdAt": "2025-11-05T19:27:45.399303Z"
+        },
+        "seriesSlug": "wnba",
+        "startTime": "2026-06-10T00:00:00Z",
+        "teams": [
+          {
+            "name": "Dallas Wings",
+            "alias": "Wings",
+            "abbreviation": "dal",
+            "league": "wnba"
+          },
+          {
+            "name": "Minnesota Lynx",
+            "alias": "Lynx",
+            "abbreviation": "min",
+            "league": "wnba"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "wnba"
+          }
+        ]
+      },
+      "international_market": {
+        "slug": "wnba-dal-min-2026-06-09",
+        "id": "2367066",
+        "question": "Dallas Wings vs. Minnesota Lynx",
+        "sportsMarketType": "moneyline",
+        "gameStartTime": "2026-06-10 00:00:00+00",
+        "outcomes": "[\"Dallas Wings\", \"Minnesota Lynx\"]",
+        "clobTokenIds": "[\"22420226122664148401265836535921359260878042439549549465512527171207016034284\", \"4279249450849209461698781453102921859085278005083702081443832522681186410435\"]",
+        "description": "In the upcoming WNBA game, scheduled for June 9 at 8:00PM ET:\nIf the Dallas Wings win, the market will resolve to \"Dallas Wings\".\nIf the Minnesota Lynx win, the market will resolve to \"Minnesota Lynx\".\nIf the game is postponed, this market will remain open until the game has been completed.\nIf the game is canceled entirely, with no make-up game, this market will resolve 50-50.\nThe result will be determined based on the final score including any overtime periods.",
+        "resolutionSource": "https://www.wnba.com/scores",
+        "closed": true,
+        "events": [
+          {
+            "slug": "wnba-dal-min-2026-06-09"
+          }
+        ]
+      },
+      "us_event": {
+        "slug": "wnba-dal-min-2026-06-09",
+        "title": "Dallas vs. Minnesota",
+        "seriesSlug": "wnba-2026",
+        "startTime": "2026-06-10T00:00:00Z",
+        "participants": [],
+        "teams": [
+          {
+            "name": "Dallas",
+            "alias": "Wings",
+            "safeName": "Dallas",
+            "abbreviation": "dal",
+            "league": "wnba"
+          },
+          {
+            "name": "Minnesota",
+            "alias": "Lynx",
+            "safeName": "Minnesota",
+            "abbreviation": "min",
+            "league": "wnba"
+          }
+        ],
+        "tags": [
+          {
+            "slug": "sports"
+          },
+          {
+            "slug": "games"
+          },
+          {
+            "slug": "basketball",
+            "sport": {
+              "id": 1,
+              "name": "Basketball",
+              "tagId": 11,
+              "createdAt": "2026-03-05T18:30:42Z",
+              "slug": "basketball",
+              "image": "https://static.polymarket.us/images/new-category-icons/Icon-Basketball.png"
+            }
+          },
+          {
+            "slug": "wnba",
+            "league": {
+              "id": 28,
+              "name": "WNBA",
+              "sportId": 1,
+              "tagId": 94,
+              "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/league-images/wcbb.png",
+              "ordering": "away",
+              "activeSeriesId": 49,
+              "isOperational": true,
+              "automaticResolution": false,
+              "createdAt": "2026-05-06T12:55:52Z",
+              "slug": "wnba"
+            }
+          }
+        ],
+        "markets": [
+          {
+            "slug": "aec-wnba-dal-min-2026-06-09",
+            "id": "49531",
+            "question": "Who will win in the upcoming basketball event Dallas vs Minnesota scheduled for June 10, 2026 at 12:00 AM UTC?",
+            "sportsMarketType": "moneyline",
+            "gameStartTime": "2026-06-10T00:00:00Z",
+            "outcomes": "[\"Lynx\",\"Wings\"]",
+            "description": "This market resolves based on the official winner of the Minnesota vs Dallas WNBA game originally scheduled for Jun 9, 2026. Overtime is included if played. If the game is canceled, postponed indefinitely, or otherwise not officially completed, this market will resolve to the last fair market price.",
+            "closed": true,
+            "marketSides": [
+              {
+                "description": "Wings",
+                "long": true,
+                "team": {
+                  "name": "Dallas",
+                  "alias": "Wings",
+                  "safeName": "Dallas",
+                  "abbreviation": "dal",
+                  "league": "wnba"
+                }
+              },
+              {
+                "description": "Lynx",
+                "long": false,
+                "team": {
+                  "name": "Minnesota",
+                  "alias": "Lynx",
+                  "safeName": "Minnesota",
+                  "abbreviation": "min",
+                  "league": "wnba"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "slug": "aec-wnba-dal-min-2026-06-09",
+          "side": "yes"
+        }
+      ],
+      "expected_near": []
+    }
+  ]
+}

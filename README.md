@@ -177,9 +177,58 @@ Run the read-only Polymarket US diagnostic with:
 .\.venv311\Scripts\python.exe scripts\check_polymarket_us.py
 ```
 
-PredictionHunt must supply a Polymarket US market slug or URL for each US leg.
-A numeric Polymarket International outcome token is intentionally rejected;
-it is not a Polymarket US market identifier and cannot safely be guessed.
+Numeric PredictionHunt Polymarket identifiers are resolved through International Gamma
+metadata, then mapped to US contracts by searching the parent event name. The
+mapper has no sport allowlist. It compares sport, league, participants, exact
+scheduled instant, market type, period, signed line, subject, and intended outcome.
+Named moneyline/spread/total outcomes use structured comparison; other contracts
+require the same specific type and exact question as well. Unknown or incomplete
+metadata, ambiguous candidates, and unverified settlement rules fail closed.
+
+Rules descriptions currently must agree after whitespace/case normalization;
+structured rule fields and disclaimers must also agree. Similar normal-play
+outcomes do not prove equivalent cancellation, postponement, tie, or push rules.
+Real US/International markets can therefore be rejected despite identical teams
+and lines. Prices never establish contract identity.
+
+The resolver verifies outcome-token membership first, then checks an exact Gamma
+market ID. A Gamma market ID with literal YES/NO outcomes uses the feed side;
+named-outcome market IDs require an explicit intended outcome/token rather than
+assuming array order. The diagnostic excludes non-sports feed entries.
+
+A numeric outcome token identifies its International outcome (named teams may map to
+either US long/YES or short/NO). Literal YES/NO tokens conflicting with the feed's
+side are rejected. PredictionHunt's group side remains the pair label; the encoded
+US reference controls REST books, WebSocket prices, and order intent.
+
+Successful mappings are cached in bounded memory for up to five minutes; event
+searches and US metadata use a 30-second cache, and failures have a 30-second
+retry cooldown. Cache entries are not persisted across restarts. Existing
+preflight, live-price, profitability, and FOK checks still run after mapping.
+Read-only diagnostics print full rejection reasons:
+
+```powershell
+.\.venv311\Scripts\python.exe scripts\check_predictionhunt_us_mapping.py
+```
+
+Random public sports-market diagnostics, including archived games, run without
+the trading date window or any order submission:
+
+```powershell
+.\.venv311\Scripts\python.exe scripts\check_random_sports_mapping.py --leagues mlb,nfl,epl,ufc,atp,nba,nhl,wnba
+```
+
+The September 10 smoke test sampled 43 contracts across eight leagues and found
+19 exact contract identities across MLB, NFL, EPL, NBA, NHL, and WNBA. Other
+contracts lacked an exact US counterpart, including absent lines/types and
+different scheduled times. Two additional selected events had no International
+counterpart available for sampling. Settlement descriptions differed even for
+the exact identities, so these results do not authorize trading. Evidence is in
+`docs/mapping-smoke-test-2026-09-10.json`; real metadata snapshots also run as
+offline regression tests. The diagnostic exits nonzero when any sample is not
+an exact identity match. This test does not establish coverage of every sport
+or contract type.
+
 
 ```powershell
 python -m firstbot run-hot-arb --limit 250 --predictionhunt-poll-seconds 30 --hot-window-seconds 600 --max-days-to-resolution 3 --prefer-same-day --paper

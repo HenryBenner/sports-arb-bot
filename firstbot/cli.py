@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -26,6 +27,13 @@ from .signals import SignalBotRunner
 
 
 def main(argv: list[str] | None = None) -> int:
+    mapping_logger = logging.getLogger("firstbot.exchanges.international_mapping")
+    if not mapping_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        mapping_logger.addHandler(handler)
+    mapping_logger.setLevel(logging.INFO)
+    mapping_logger.propagate = False
     parser = argparse.ArgumentParser(prog="firstbot")
     subparsers = parser.add_subparsers(dest="command", required=True)
     scan_parser = subparsers.add_parser("scan", help="scan configured market pairs")

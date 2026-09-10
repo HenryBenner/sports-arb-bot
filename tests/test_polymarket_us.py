@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import Mock
 from decimal import Decimal
 
 from firstbot.exchanges.polymarket_us import PolymarketUSClient
@@ -88,17 +89,26 @@ class PolymarketUSClientTests(unittest.TestCase):
             [(40, Decimal("8")), (41, Decimal("3"))],
         )
 
-    def test_predictionhunt_source_url_resolves_exact_us_slug_and_side(self):
+    def test_explicit_us_source_url_resolves_slug_and_side(self):
         result = self.client.resolve_predictionhunt_market(
-            "123456",
+            "team-a-win",
             Side.NO,
             "https://polymarket.us/event/team-a-win",
         )
         self.assertEqual(result, "team-a-win::no")
 
-    def test_numeric_global_token_without_us_url_is_rejected(self):
-        with self.assertRaisesRegex(RuntimeError, "polymarket_us_market_mapping_required"):
-            self.client.resolve_predictionhunt_market("123456", Side.YES)
+    def test_numeric_token_always_uses_mapper_even_with_us_url(self):
+        self.client.international_mapper = Mock()
+        self.client.international_mapper.resolve.return_value = "team-a-win::no"
+        self.assertEqual(self.client.resolve_predictionhunt_market(
+            "123456", Side.YES, "https://polymarket.us/event/team-a-win"), "team-a-win::no")
+        self.client.international_mapper.resolve.assert_called_once_with("123456", Side.YES)
+
+    def test_encoded_outcome_controls_books_despite_feed_pair_label(self):
+        levels = self.client.get_token_ask_levels("team-a-win::no", Side.YES)
+        self.assertEqual(levels[0].price_cents, 40)
+        self.assertEqual(self.client.get_token_bid_levels("team-a-win::no", Side.YES)[0].price_cents, 38)
+        self.assertEqual(self.client.resolve_predictionhunt_market("team-a-win::no", Side.YES), "team-a-win::no")
 
     def test_buy_yes_and_buy_no_send_distinct_explicit_intents(self):
         yes = self.client.buy("team-a-win::yes", 62, Decimal("5"))

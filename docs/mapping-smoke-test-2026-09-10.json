@@ -1,0 +1,807 @@
+{
+  "observed_at": "2026-09-10T21:27:41.431880+00:00",
+  "seed": 20260910,
+  "diagnostic_only": true,
+  "summary": {
+    "identity_match": 19,
+    "not_exact": 24,
+    "not_sampled": 2
+  },
+  "sampling": "Two seeded random US game events per league; available International contract types sampled with random outcomes. Archived games included; no trading date cutoff.",
+  "results": [
+    {
+      "league": "mlb",
+      "event": "mlb-col-nyy-2026-09-10",
+      "question": "Colorado Rockies vs. New York Yankees",
+      "market_type": "moneyline",
+      "token": "90751690458114107337713649408403216457927076574647586480293403156551181026722",
+      "intended_outcome": "New York Yankees",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-mlb-col-nyy-2026-09-10",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=new york yankees us=colorado rockies"
+      ]
+    },
+    {
+      "league": "mlb",
+      "event": "mlb-col-nyy-2026-09-10",
+      "question": "Spread: New York Yankees (-1.5)",
+      "market_type": "spreads",
+      "token": "90591000289261577431139660938472180617817122190474276709834243165900582773073",
+      "intended_outcome": "New York Yankees",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "asc-mlb-col-nyy-2026-09-10-pos-1pt5",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=-1.5 us=2.50",
+        "line mismatch international=-1.5 us=-2.50",
+        "line mismatch international=-1.5 us=1.50"
+      ]
+    },
+    {
+      "league": "mlb",
+      "event": "mlb-col-nyy-2026-09-10",
+      "question": "Colorado Rockies vs. New York Yankees: O/U 9.5",
+      "market_type": "totals",
+      "token": "53289887744919367629749205192725419159577458469207819639414951492182500562876",
+      "intended_outcome": "Under",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "tsc-mlb-col-nyy-2026-09-10-9pt5",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=9.5 us=7.5",
+        "line mismatch international=9.5 us=8.5",
+        "outcome mismatch international=under us=over"
+      ]
+    },
+    {
+      "league": "mlb",
+      "event": "mlb-col-det-2026-09-11",
+      "question": "Colorado Rockies vs. Detroit Tigers",
+      "market_type": "moneyline",
+      "token": "29514720079430880907153855961681340086780539591746523903213318866605387663992",
+      "intended_outcome": "Detroit Tigers",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-mlb-col-det-2026-09-11",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=detroit tigers us=colorado rockies"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-bal-ind-2026-09-13",
+      "question": "Ravens vs. Colts",
+      "market_type": "moneyline",
+      "token": "100851132542340394038916345715769912495135021067572506303645946689643832920092",
+      "intended_outcome": "Ravens",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-nfl-bal-ind-2026-09-13",
+          "us_outcome": "yes",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=baltimore ravens us=indianapolis colts"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-bal-ind-2026-09-13",
+      "question": "Spread: Ravens (-14.5)",
+      "market_type": "spreads",
+      "token": "72765690400379706340682831044595024557179387788741249164594476344438560636411",
+      "intended_outcome": "Ravens",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "asc-nfl-bal-ind-2026-09-13-neg-14pt5",
+          "us_outcome": "yes",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=-14.5 us=-2.50",
+        "line mismatch international=-14.5 us=2.50",
+        "line mismatch international=-14.5 us=9.50"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-bal-ind-2026-09-13",
+      "question": "Ravens vs. Colts: O/U 65.5",
+      "market_type": "totals",
+      "token": "65170311817936911735938500816253842936863416884530071215247815460709307359587",
+      "intended_outcome": "Over",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=65.5 us=62.5",
+        "line mismatch international=65.5 us=26.5",
+        "line mismatch international=65.5 us=28.5"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-bal-ind-2026-09-13",
+      "question": "Ravens vs. Colts: 1H Moneyline",
+      "market_type": "first_half_moneyline",
+      "token": "67129040813096910411387512526131921679290291064802618597764564658937576502846",
+      "intended_outcome": "Colts",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "question mismatch international= us=will baltimore ravens win the first half?",
+        "outcome mismatch international=indianapolis colts us=yes",
+        "outcome_universe mismatch international=('baltimore ravens', 'indianapolis colts') us=('no', 'yes')"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-bal-ind-2026-09-13",
+      "question": "1H Spread: Ravens (-6.5)",
+      "market_type": "first_half_spreads",
+      "token": "52986166933194049493015145193441834498258403172639795359899245743527943352851",
+      "intended_outcome": "Colts",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "asc-nfl-bal-ind-2026-09-13-1h-neg-6pt5",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=6.5 us=21.50",
+        "line mismatch international=6.5 us=-21.50",
+        "line mismatch international=6.5 us=16.50"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-bal-ind-2026-09-13",
+      "question": "Ravens vs. Colts: 1H O/U 24.5",
+      "market_type": "first_half_totals",
+      "token": "105231804692142649121248718611492793502630197757909672862686374157761365480294",
+      "intended_outcome": "Over",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "tsc-nfl-bal-ind-2026-09-13-1h-24pt5",
+          "us_outcome": "yes",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=24.5 us=6.5",
+        "line mismatch international=24.5 us=27.5",
+        "line mismatch international=24.5 us=21.5"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-no-det-2026-09-13",
+      "question": "Saints vs. Lions",
+      "market_type": "moneyline",
+      "token": "57523127424226766393056633014729010003110199810600081599665311101663846205585",
+      "intended_outcome": "Saints",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-nfl-no-det-2026-09-13",
+          "us_outcome": "yes",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=new orleans saints us=detroit lions"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-no-det-2026-09-13",
+      "question": "Spread: Saints (-9.5)",
+      "market_type": "spreads",
+      "token": "7428376228526429980030017945894595713925216027145003288235912327008782295021",
+      "intended_outcome": "Lions",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "asc-nfl-no-det-2026-09-13-neg-9pt5",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=9.5 us=-9.50",
+        "line mismatch international=9.5 us=1.50",
+        "line mismatch international=9.5 us=-1.50"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-no-det-2026-09-13",
+      "question": "Saints vs. Lions: O/U 45.5",
+      "market_type": "totals",
+      "token": "22450583795099990773987039019935990670319055349658016857930788526870744008202",
+      "intended_outcome": "Over",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "tsc-nfl-no-det-2026-09-13-total-45pt5",
+          "us_outcome": "yes",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=45.5 us=53.5",
+        "line mismatch international=45.5 us=44.5",
+        "line mismatch international=45.5 us=69.5"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-no-det-2026-09-13",
+      "question": "Saints vs. Lions: 1H Moneyline",
+      "market_type": "first_half_moneyline",
+      "token": "86915290703597812729098301787535174872048611598468547746140112454219743368266",
+      "intended_outcome": "Lions",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "question mismatch international= us=will the first half end tied?",
+        "outcome mismatch international=detroit lions us=yes",
+        "outcome_universe mismatch international=('detroit lions', 'new orleans saints') us=('new orleans saints', 'yes')"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-no-det-2026-09-13",
+      "question": "1H Spread: Saints (-8.5)",
+      "market_type": "first_half_spreads",
+      "token": "18393718567739741194791641760576685562039812860497027271218443263821186478623",
+      "intended_outcome": "Lions",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "asc-nfl-no-det-2026-09-13-1h-neg-8pt5",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=8.5 us=-21.50",
+        "line mismatch international=8.5 us=21.50",
+        "line mismatch international=8.5 us=-5.50"
+      ]
+    },
+    {
+      "league": "nfl",
+      "event": "nfl-no-det-2026-09-13",
+      "question": "Saints vs. Lions: 1H O/U 24.5",
+      "market_type": "first_half_totals",
+      "token": "102823958162619280420301264565326921734933468152148973718168893647448524676814",
+      "intended_outcome": "Under",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "line mismatch international=24.5 us=25.5",
+        "line mismatch international=24.5 us=28.5",
+        "line mismatch international=24.5 us=22.5"
+      ]
+    },
+    {
+      "league": "epl",
+      "event": "epl-tot-eve-2026-09-12",
+      "question": "Will Tottenham Hotspur FC win on 2026-09-12?",
+      "market_type": "moneyline",
+      "token": "90257630017214512440107144361542243716749282071657622271175000802052724669239",
+      "intended_outcome": "Yes",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "atc-epl-tot-eve-2026-09-12-tot",
+          "us_outcome": "yes",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=yes us=no",
+        "subject mismatch international=tottenham hotspur fc us=draw",
+        "subject mismatch international=tottenham hotspur fc us=everton fc"
+      ]
+    },
+    {
+      "league": "epl",
+      "event": "epl-lee-new-2026-09-14",
+      "question": "Will Leeds United FC vs. Newcastle United FC end in a draw?",
+      "market_type": "moneyline",
+      "token": "49234856737035716846492515255072919451827981802243577975672346778310229035936",
+      "intended_outcome": "No",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "atc-epl-lee-new-2026-09-14-draw",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "subject mismatch international=draw us=leeds united fc",
+        "outcome mismatch international=no us=yes",
+        "subject mismatch international=draw us=newcastle united fc"
+      ]
+    },
+    {
+      "league": "ufc",
+      "event": "ufc-ale17-man3-2026-09-12",
+      "question": "Noche UFC: Alexa Grasso vs. Manon Fiorot (Women's Flyweight, Main Card)",
+      "market_type": "moneyline",
+      "token": "69292896241444760913190719938256282570412729706067946667504235138139257338193",
+      "intended_outcome": "Alexa Grasso",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [
+        {
+          "us_slug": "aec-ufc-manfio-alegra-2026-09-12",
+          "us_outcome": "no",
+          "mismatches": [
+            "scheduled mismatch international=2026-09-12 18:00:00+00:00 us=2026-09-12 22:30:00+00:00"
+          ],
+          "us_question": "Who will win in the upcoming mma event Manon Fiorot vs Alexa Grasso scheduled for September 12, 2026 at 9:40 PM UTC?"
+        }
+      ],
+      "reasons": [
+        "scheduled mismatch international=2026-09-12 18:00:00+00:00 us=2026-09-12 22:30:00+00:00",
+        "outcome mismatch international=alexa grasso us=manon fiorot"
+      ]
+    },
+    {
+      "league": "ufc",
+      "event": "ufc-ale17-man3-2026-09-12",
+      "question": "O/U 0.5 Rounds",
+      "market_type": "totals",
+      "token": "78806280346972264877842239681721790760415757458907601002864336548631322073596",
+      "intended_outcome": "Under",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=total period=full_game in located event",
+        "scheduled mismatch international=2026-09-12 18:00:00+00:00 us=2026-09-12 22:30:00+00:00",
+        "market_type/period mismatch international=total/full_game us=ufc_round_of_victory/ufc_round_of_victory"
+      ]
+    },
+    {
+      "league": "ufc",
+      "status": "not_sampled",
+      "reason": "International counterpart not found"
+    },
+    {
+      "league": "atp",
+      "event": "atp-passaro-varilla-2026-09-10",
+      "question": "Genoa: Francesco Passaro vs Juan Pablo Varillas",
+      "market_type": "moneyline",
+      "token": "18791047169431729450815820006126253384185951639312450806644736151298688610678",
+      "intended_outcome": "Juan Pablo Varillas",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "participants mismatch international=('francesco passaro', 'juan pablo varillas') us=('billy harris', 'moez echargui')",
+        "scheduled mismatch international=2026-09-10 19:05:00+00:00 us=2026-09-10 09:25:00+00:00",
+        "participants mismatch international=('francesco passaro', 'juan pablo varillas') us=('alexander zverev', 'botic van de zandschulp')"
+      ]
+    },
+    {
+      "league": "atp",
+      "event": "atp-hemery-lajovic-2026-09-10",
+      "question": "Seville: Calvin Hemery vs Dusan Lajovic",
+      "market_type": "moneyline",
+      "token": "109709869865497915751910937140952982937691873253580396081017676083045035753922",
+      "intended_outcome": "Dusan Lajovic",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [
+        {
+          "us_slug": "aec-atp-calhem-duslaj-2026-09-10",
+          "us_outcome": "no",
+          "mismatches": [
+            "scheduled mismatch international=2026-09-10 19:35:00+00:00 us=2026-09-10 19:45:00+00:00"
+          ],
+          "us_question": "Calvin Hemery vs. Dusan Lajovic"
+        }
+      ],
+      "reasons": [
+        "scheduled mismatch international=2026-09-10 19:35:00+00:00 us=2026-09-10 19:45:00+00:00",
+        "outcome mismatch international=dusan lajovic us=calvin hemery"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-dal-was-2025-11-09",
+      "question": "Mavericks vs. Wizards",
+      "market_type": "moneyline",
+      "token": "10903061921083958464335554432785703077072806691695938199772175167285146772073",
+      "intended_outcome": "Wizards",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-nba-dal-was-2025-11-08",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules equivalence unverified: descriptions differ"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=wizards us=mavericks"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-dal-was-2025-11-09",
+      "question": "Spread: Mavericks (-3.5)",
+      "market_type": "spreads",
+      "token": "21057807074429780012209785142095967322435739869160365722736976183010642053672",
+      "intended_outcome": "Wizards",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=spread period=full_game in located event",
+        "market_type/period mismatch international=spread/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-dal-was-2025-11-09",
+      "question": "Mavericks vs. Wizards: O/U 234.5",
+      "market_type": "totals",
+      "token": "36237847117650404519124130233577652913132202900502498738554115873130186998697",
+      "intended_outcome": "Over",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=total period=full_game in located event",
+        "market_type/period mismatch international=total/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-dal-was-2025-11-09",
+      "question": "Mavericks vs. Wizards: 1H Moneyline",
+      "market_type": "first_half_moneyline",
+      "token": "100675326047790896157173069295438972904188490650497161489530472251645112227456",
+      "intended_outcome": "Wizards",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=moneyline period=first_half in located event",
+        "market_type/period mismatch international=moneyline/first_half us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-dal-was-2025-11-09",
+      "question": "1H Spread: Mavericks (-1.5)",
+      "market_type": "first_half_spreads",
+      "token": "23373099394155225339998483223996521826233484494671308769819778004578131215975",
+      "intended_outcome": "Wizards",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=spread period=first_half in located event",
+        "market_type/period mismatch international=spread/first_half us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-dal-was-2025-11-09",
+      "question": "Mavericks vs. Wizards: 1H O/U 119.5",
+      "market_type": "first_half_totals",
+      "token": "115757633171488036091981242537530531756444263802359276596015432931753141491693",
+      "intended_outcome": "Over",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=total period=first_half in located event",
+        "market_type/period mismatch international=total/first_half us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-gsw-sas-2025-11-12",
+      "question": "Warriors vs. Spurs",
+      "market_type": "moneyline",
+      "token": "66041836252763859063758647881580879411203980449425358332487136863019269574493",
+      "intended_outcome": "Spurs",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-nba-gs-sa-2025-11-12",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules equivalence unverified: descriptions differ"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=spurs us=warriors"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-gsw-sas-2025-11-12",
+      "question": "Spread: Spurs (-5.5)",
+      "market_type": "spreads",
+      "token": "37565200785709213631673850776223667038761736406148016228230877942984119211306",
+      "intended_outcome": "Spurs",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=spread period=full_game in located event",
+        "market_type/period mismatch international=spread/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-gsw-sas-2025-11-12",
+      "question": "Warriors vs. Spurs: O/U 227.5",
+      "market_type": "totals",
+      "token": "36809650520896736005488669167920602018388706610671923252019596766835725399312",
+      "intended_outcome": "Over",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=total period=full_game in located event",
+        "market_type/period mismatch international=total/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-gsw-sas-2025-11-12",
+      "question": "Warriors vs. Spurs: 1H Moneyline",
+      "market_type": "first_half_moneyline",
+      "token": "53240511925453813906505992230311978798934756153480555954517358738877239856731",
+      "intended_outcome": "Spurs",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=moneyline period=first_half in located event",
+        "market_type/period mismatch international=moneyline/first_half us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-gsw-sas-2025-11-12",
+      "question": "1H Spread: Spurs (-2.5)",
+      "market_type": "first_half_spreads",
+      "token": "108448427228919476072612587265833204837915894456546946009953930912559839245477",
+      "intended_outcome": "Spurs",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=spread period=first_half in located event",
+        "market_type/period mismatch international=spread/first_half us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nba",
+      "event": "nba-gsw-sas-2025-11-12",
+      "question": "Warriors vs. Spurs: 1H O/U 112.5",
+      "market_type": "first_half_totals",
+      "token": "12611746837336103488923991467274789698710200080605620212160862800254593464635",
+      "intended_outcome": "Over",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=total period=first_half in located event",
+        "market_type/period mismatch international=total/first_half us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nhl",
+      "event": "nhl-buf-wpg-2025-12-06",
+      "question": "Sabres vs. Jets",
+      "market_type": "moneyline",
+      "token": "46315037020056803361875889599276573486125822109408376171923901297348471056435",
+      "intended_outcome": "Jets",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-nhl-buf-wpg-2025-12-06",
+          "us_outcome": "no",
+          "rules_status": "mapping rejected: settlement rules equivalence unverified: descriptions differ"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=jets us=sabres"
+      ]
+    },
+    {
+      "league": "nhl",
+      "event": "nhl-buf-wpg-2025-12-06",
+      "question": "Spread: Jets (-1.5)",
+      "market_type": "spreads",
+      "token": "40700145230707216561033578362095369271892494903168816653280421526398241750391",
+      "intended_outcome": "Sabres",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=spread period=full_game in located event",
+        "market_type/period mismatch international=spread/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nhl",
+      "event": "nhl-buf-wpg-2025-12-06",
+      "question": "Sabres vs. Jets: O/U 6.5",
+      "market_type": "totals",
+      "token": "45209333338362640242218561191543465195913994871190386193440588173003226156151",
+      "intended_outcome": "Under",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=total period=full_game in located event",
+        "market_type/period mismatch international=total/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nhl",
+      "event": "nhl-min-sea-2025-12-09",
+      "question": "Wild vs. Kraken",
+      "market_type": "moneyline",
+      "token": "3411755308032819792637684552367676463503745168728900426460587406526206878956",
+      "intended_outcome": "Wild",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-nhl-min-sea-2025-12-09",
+          "us_outcome": "yes",
+          "rules_status": "mapping rejected: settlement rules equivalence unverified: descriptions differ"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=wild us=kraken"
+      ]
+    },
+    {
+      "league": "nhl",
+      "event": "nhl-min-sea-2025-12-09",
+      "question": "Spread: Wild (-1.5)",
+      "market_type": "spreads",
+      "token": "56651155748881898728386396196717774090026400345984312897195960191989954575351",
+      "intended_outcome": "Wild",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=spread period=full_game in located event",
+        "market_type/period mismatch international=spread/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "nhl",
+      "event": "nhl-min-sea-2025-12-09",
+      "question": "Wild vs. Kraken: O/U 5.5",
+      "market_type": "totals",
+      "token": "41599819507544351214282535405485821843479174453465577486069520891232908172745",
+      "intended_outcome": "Over",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=total period=full_game in located event",
+        "market_type/period mismatch international=total/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "wnba",
+      "event": "wnba-dal-min-2026-06-09",
+      "question": "Dallas Wings vs. Minnesota Lynx",
+      "market_type": "moneyline",
+      "token": "22420226122664148401265836535921359260878042439549549465512527171207016034284",
+      "intended_outcome": "Dallas Wings",
+      "status": "identity_match",
+      "candidates": [
+        {
+          "us_slug": "aec-wnba-dal-min-2026-06-09",
+          "us_outcome": "yes",
+          "rules_status": "mapping rejected: settlement rules mismatch: last-fair-market-price treatment differs"
+        }
+      ],
+      "near_matches": [],
+      "reasons": [
+        "outcome mismatch international=dallas wings us=minnesota lynx"
+      ]
+    },
+    {
+      "league": "wnba",
+      "event": "wnba-dal-min-2026-06-09",
+      "question": "Spread: Minnesota Lynx (-5.5)",
+      "market_type": "spreads",
+      "token": "97754885009883876909607953100434049928980574986553901294536329910299336352566",
+      "intended_outcome": "Dallas Wings",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=spread period=full_game in located event",
+        "market_type/period mismatch international=spread/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "wnba",
+      "event": "wnba-dal-min-2026-06-09",
+      "question": "Dallas Wings vs. Minnesota Lynx: O/U 171.5",
+      "market_type": "totals",
+      "token": "57957851123457892511218539728264186146837624974559766653629863719724649296326",
+      "intended_outcome": "Over",
+      "status": "not_exact",
+      "candidates": [],
+      "near_matches": [],
+      "reasons": [
+        "no US market with type=total period=full_game in located event",
+        "market_type/period mismatch international=total/full_game us=moneyline/full_game"
+      ]
+    },
+    {
+      "league": "wnba",
+      "status": "not_sampled",
+      "reason": "International counterpart not found"
+    }
+  ]
+}

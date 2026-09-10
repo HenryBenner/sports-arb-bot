@@ -219,9 +219,10 @@ class PolymarketOrderbookStream:
                     continue
                 slug = str(data.get("marketSlug") or "")
                 for leg in legs_by_slug.get(slug, []):
+                    _, venue_side = self.polymarket._split_ref(leg.market_id)
                     levels = (
                         self.polymarket._offer_levels(data)
-                        if leg.side is Side.YES
+                        if (venue_side or leg.side) is Side.YES
                         else self.polymarket._no_ask_levels(data)
                     )
                     yield LiveLegBook(

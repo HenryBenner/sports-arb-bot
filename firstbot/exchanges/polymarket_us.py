@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from ..models import BookLevel, Exchange, FeeSchedule, OrderBook, Side
+from .international_mapping import InternationalMarketMapper
 
 
 REF_SEPARATOR = "::"
@@ -32,6 +33,8 @@ class PolymarketUSClient:
         secret_key: str | None = None,
         timeout: int = 30,
         sdk_client: Any | None = None,
+        gamma_url: str = "https://gamma-api.polymarket.com",
+        http: Any | None = None,
     ) -> None:
         self.public_url = public_url.rstrip("/")
         self.api_url = api_url.rstrip("/")
@@ -42,6 +45,7 @@ class PolymarketUSClient:
         self.secret_key = secret_key
         self.timeout = timeout
         self._sdk_client = sdk_client
+        self.international_mapper = InternationalMarketMapper(self, gamma_url, http)
 
     def _client(self) -> Any:
         if self._sdk_client is None:
@@ -102,7 +106,12 @@ class PolymarketUSClient:
         side: Side,
         source_url: str | None = None,
     ) -> str:
-        current_slug, _ = self._split_ref(market_id)
+        current_slug, encoded_side = self._split_ref(market_id)
+        if current_slug.isdigit():
+            return self.international_mapper.resolve(current_slug, side)
+        # Already resolved references retain their venue orientation.
+        if encoded_side is not None:
+            return self._ref(current_slug, encoded_side)
         url_slug = _market_slug_from_url(source_url)
         candidates = [value for value in (url_slug, current_slug) if value]
         errors: list[str] = []
@@ -153,7 +162,7 @@ class PolymarketUSClient:
         self, token_id: str, side: Side | None = None
     ) -> list[BookLevel]:
         slug, encoded_side = self._split_ref(token_id)
-        selected_side = side or encoded_side
+        selected_side = encoded_side or side
         if selected_side is None:
             raise RuntimeError("Polymarket US market reference is missing its YES/NO side")
         data = self._book_data(slug)
@@ -172,7 +181,7 @@ class PolymarketUSClient:
         self, token_id: str, side: Side | None = None
     ) -> list[BookLevel]:
         slug, encoded_side = self._split_ref(token_id)
-        selected_side = side or encoded_side
+        selected_side = encoded_side or side
         if selected_side is None:
             raise RuntimeError("Polymarket US market reference is missing its YES/NO side")
         data = self._book_data(slug)

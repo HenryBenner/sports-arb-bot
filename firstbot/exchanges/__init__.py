@@ -12,6 +12,8 @@ def create_polymarket_client(settings, http=None):
             key_id=settings.polymarket_us_key_id,
             secret_key=settings.polymarket_us_secret_key,
             timeout=settings.http_timeout_seconds,
+            gamma_url=settings.polymarket_gamma_url,
+            http=http,
         )
     if settings.polymarket_venue != "global":
         raise RuntimeError("POLYMARKET_VENUE must be either 'global' or 'us'")
