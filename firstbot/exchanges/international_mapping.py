@@ -1,8 +1,9 @@
 """Read-only International -> US mapping. Discovery never authorizes a trade.
 
 There is deliberately no sport allowlist and no price-based identity inference.
-Unrecognized market types use exact type/question matching. Rules which cannot
-be proven identical are rejected, even when normal-play outcomes look alike.
+Unrecognized market types use exact type/question matching. Contract identity
+must be unique and exact; edge-case settlement-policy differences are warnings
+unless explicit structured metadata shows a normal-play semantic conflict.
 """
 from __future__ import annotations
 
@@ -309,19 +310,47 @@ def differences(a: Any, b: Any) -> list[str]:
     return result
 
 
-def verify_rules(international: dict, us: dict) -> None:
-    left = required(text(international.get("description")), "International settlement rules")
-    right = required(text(us.get("description")), "US settlement rules")
+def verify_rules(international: dict, us: dict) -> str:
+    """Classify settlement differences after exact contract identity is established.
+
+    Cancellation/postponement/LFMP and other administrative settlement differences
+    are warnings only. Explicit conflicts that can change a normally played game's
+    outcome remain hard rejects.
+    """
+    warnings: list[str] = []
+    left = text(international.get("description"))
+    right = text(us.get("description"))
     if left != right:
         if ("fair market price" in left) != ("fair market price" in right):
-            raise MappingRejected("settlement rules mismatch: last-fair-market-price treatment differs")
-        raise MappingRejected("settlement rules equivalence unverified: descriptions differ")
-    # Identical prose cannot override a conflicting structured rule or disclaimer.
-    for key in ("resolutionSource", "rules", "rulesDisclaimer", "includesOvertime",
-                "includesExtraInnings", "pushPolicy", "voidPolicy", "tiePolicy",
-                "postponementPolicy", "cancellationPolicy", "settlementDeadline"):
+            warnings.append("last-fair-market-price treatment differs")
+        elif left and right:
+            warnings.append("settlement descriptions differ")
+        else:
+            warnings.append("settlement description missing on one venue")
+
+    # These can change payout after a normally played game, so an explicit
+    # disagreement remains a hard safety failure. Missing metadata is only a
+    # warning because exact event/type/period/line/outcome identity is already
+    # required independently by the fingerprint matcher.
+    hard_fields = ("includesOvertime", "includesExtraInnings", "pushPolicy", "tiePolicy")
+    for key in hard_fields:
+        left_value, right_value = international.get(key), us.get(key)
+        if left_value not in (None, "") and right_value not in (None, ""):
+            if left_value != right_value:
+                raise MappingRejected(f"settlement semantics mismatch: {key}")
+        elif left_value != right_value:
+            warnings.append(f"settlement metadata differs: {key}")
+
+    # These primarily govern exceptional, administrative, or fallback settlement.
+    # They are retained in diagnostics but do not veto an otherwise exact mapping.
+    warning_fields = ("resolutionSource", "rules", "rulesDisclaimer", "voidPolicy",
+                      "postponementPolicy", "cancellationPolicy", "settlementDeadline")
+    for key in warning_fields:
         if international.get(key) != us.get(key):
-            raise MappingRejected(f"settlement rules mismatch: {key}")
+            warnings.append(f"settlement policy differs: {key}")
+
+    warnings = list(dict.fromkeys(warnings))
+    return "exact" if not warnings else "warning: " + "; ".join(warnings)
 
 
 def us_outcomes(market: dict) -> list[tuple[Side, str, str]]:
@@ -472,14 +501,20 @@ class InternationalMarketMapper:
         if report["international_closed"]:
             raise MappingRejected("International source market is closed; inspection only")
         candidates = report["candidates"]
-        approved = [c for c in candidates if c["rules_status"] == "exact"]
+        approved = [c for c in candidates if c["rules_status"] == "exact" or
+                    c["rules_status"].startswith("warning:")]
         if len(candidates) != 1 or len(approved) != 1 or report["unresolved_candidates"]:
-            reasons = [c["rules_status"] for c in candidates if c["rules_status"] != "exact"] + report["reasons"]
+            reasons = [c["rules_status"] for c in candidates
+                       if c["rules_status"] != "exact" and not c["rules_status"].startswith("warning:")] + report["reasons"]
             details = "; ".join(dict.fromkeys(reasons))
             raise MappingRejected(f"verified_matches={len(approved)} identity_matches={len(candidates)} "
                                   f"unresolved_candidates={report['unresolved_candidates']}" +
                                   (f"; {details}" if details else "; no matching US event/contract"))
-        return f"{approved[0]['us_slug']}::{approved[0]['us_outcome']}"
+        selected = approved[0]
+        if selected["rules_status"].startswith("warning:"):
+            LOG.warning("international_token=%s exact identity accepted with settlement warning: %s",
+                        token, selected["rules_status"].removeprefix("warning: "))
+        return f"{selected['us_slug']}::{selected['us_outcome']}"
 
     def _inspect(self, token: str, side: Side) -> dict:
         event, market, label = self._source(token, side)
@@ -561,8 +596,7 @@ class InternationalMarketMapper:
                                 }
                             continue
                         try:
-                            verify_rules(market, detail)
-                            rules_status = "exact"
+                            rules_status = verify_rules(market, detail)
                         except MappingRejected as exc:
                             rules_status = str(exc)
                         matches[f"{us_slug}::{us_side.value}"] = {
