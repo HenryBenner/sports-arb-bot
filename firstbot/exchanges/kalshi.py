@@ -156,12 +156,15 @@ class KalshiClient:
     def get_best_ask(self, ticker: str, side: Side) -> BookLevel | None:
         return self.get_orderbook(ticker).best_ask(side)
 
-    def available_cash_usd(self) -> Decimal:
+    def available_cash_usd(self, exchange_index: int | None = None) -> Decimal:
         path = "/portfolio/balance"
         raw = self.http.get_json(
             f"{self.base_url}{path}",
             headers=self._auth_headers("GET", path),
+            params={"exchange_index": exchange_index} if exchange_index is not None else None,
         )
+        if exchange_index is not None and raw.get("exchange_index", exchange_index) != exchange_index:
+            raise RuntimeError("Kalshi balance returned a different exchange_index")
         return _cash_from_balance_response(raw)
 
     def supports_immediate_orders(self) -> bool:
@@ -174,6 +177,7 @@ class KalshiClient:
         count: int,
         price_cents: int,
         time_in_force: str = "fill_or_kill",
+        exchange_index: int | None = None,
     ) -> dict[str, Any]:
         book_side, yes_price_cents = _v2_order_side_and_price(side, price_cents)
         payload: dict[str, Any] = {
@@ -188,6 +192,10 @@ class KalshiClient:
             "cancel_order_on_pause": False,
             "reduce_only": False,
         }
+        if exchange_index is not None:
+            if type(exchange_index) is not int or exchange_index < 0:
+                raise RuntimeError("invalid Kalshi exchange_index")
+            payload["exchange_index"] = exchange_index
         path = "/portfolio/events/orders"
         return self.http.post_json(
             f"{self.base_url}{path}",
@@ -268,21 +276,15 @@ class KalshiClient:
 
 
 def _cash_from_balance_response(raw: dict[str, Any]) -> Decimal:
-    candidates = [
-        raw.get("balance"),
-        raw.get("cash_balance"),
-        raw.get("available_balance"),
-        raw.get("available_cash"),
-        raw.get("portfolio", {}).get("balance") if isinstance(raw.get("portfolio"), dict) else None,
-    ]
-    for value in candidates:
-        if value is None:
-            continue
-        amount = Decimal(str(value))
-        if amount > Decimal("10000"):
-            return amount / Decimal("100")
-        return amount
-    raise RuntimeError("Kalshi balance response did not include available cash")
+    if raw.get("balance_dollars") is not None:
+        amount = Decimal(str(raw["balance_dollars"]))
+    elif raw.get("balance") is not None:
+        amount = Decimal(str(raw["balance"])) / Decimal("100")
+    else:
+        raise RuntimeError("Kalshi balance response did not include available cash")
+    if not amount.is_finite() or amount < 0:
+        raise RuntimeError("Kalshi balance response included invalid available cash")
+    return amount
 
 
 def _parse_utc_datetime(value: Any) -> datetime | None:

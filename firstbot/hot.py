@@ -978,7 +978,8 @@ class HotArbRunner:
             if leg.platform is Exchange.POLYMARKET:
                 if isinstance(self.polymarket, PolymarketUSClient):
                     token_id = self.polymarket.resolve_predictionhunt_market(
-                        leg.market_id, leg.side, leg.source_url
+                        leg.market_id, leg.side, leg.source_url,
+                        source_price_cents=_predictionhunt_price_cents(leg.price)
                     )
                 else:
                     token_id = (

@@ -65,6 +65,7 @@ class ArbLeg:
     source_price_cents: Decimal | None = None
     fee_schedule: FeeSchedule | None = None
     fee_price_levels: tuple[BookLevel, ...] = ()
+    exchange_index: int | None = None
 
 
 @dataclass(frozen=True)

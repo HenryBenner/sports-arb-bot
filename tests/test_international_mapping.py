@@ -69,6 +69,12 @@ class MappingTests(unittest.TestCase):
         self.event["tags"] = [{"slug": tag} for tag in ("sports", "games", "mlb", "baseball")]
         self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
 
+    def test_generic_outcomes_do_not_discard_numeric_or_punctuation_semantics(self):
+        mapper = self.setup_mapper(fixture(kind="custom_prop", labels=("Over 9.5", "Under 9.5")))
+        self.us_event["markets"][0]["marketSides"][0]["description"] = "Over 8.5"
+        with self.assertRaisesRegex(MappingRejected, "outcome"):
+            mapper.resolve("111", Side.YES)
+
     def test_specific_props_need_same_type_subject_question_and_line(self):
         data = fixture(kind="player_strikeouts", line="6.5", labels=("Yes", "No"))
         data[1]["question"] = data[2]["markets"][0]["question"] = "Will Player A record over 6.5 strikeouts?"
@@ -91,6 +97,25 @@ class MappingTests(unittest.TestCase):
         target["outcomes"] = list(reversed(labels))
         target["question"] = "Who will win?"
         self.assertEqual(mapper.resolve("111", Side.YES), "us-market::no")
+
+    def test_spread_named_signed_outcomes_match_exact_team_and_line(self):
+        mapper = self.setup_mapper(fixture(kind="spreads", line="-2.5",
+            labels=("Houston Astros -2.5", "Philadelphia Phillies +2.5")))
+        target = self.us_event["markets"][0]
+        target["marketSides"] = [
+            {"long": True, "description": "-2.5", "team": {"name": "Houston Astros"}},
+            {"long": False, "description": "+2.5", "team": {"name": "Philadelphia Phillies"}}]
+        self.assertEqual(mapper.resolve("222", Side.YES), "us-market::no")
+        mapper = self.setup_mapper(fixture(kind="spreads", line="-2.5",
+            labels=("Houston Astros +2.5", "Philadelphia Phillies -2.5")))
+        with self.assertRaisesRegex(MappingRejected, "signed spread outcome line conflicts"):
+            mapper.resolve("111", Side.YES)
+
+    def test_type_period_cannot_override_conflicting_explicit_period(self):
+        mapper = self.setup_mapper(fixture(kind="first_half_totals"))
+        self.us_event["markets"][0]["period"] = "second_half"
+        with self.assertRaisesRegex(MappingRejected, "conflicting market period"):
+            mapper.resolve("111", Side.YES)
 
     def test_spread_signed_line_and_named_team(self):
         mapper = self.setup_mapper(fixture(kind="spreads", line="-1.5", labels=("Houston Astros", "Philadelphia Phillies")))
@@ -135,10 +160,9 @@ class MappingTests(unittest.TestCase):
                 with self.assertRaisesRegex(MappingRejected, "missing critical metadata"):
                     mapper.resolve("111", Side.YES)
 
-    def test_outcome_token_conflict(self):
+    def test_token_outcome_is_authoritative_over_feed_group_label(self):
         mapper = self.setup_mapper(fixture(kind="custom_prop", labels=("Yes", "No")))
-        with self.assertRaisesRegex(MappingRejected, "token outcome conflicts"):
-            mapper.resolve("222", Side.YES)
+        self.assertEqual(mapper.resolve("222", Side.YES), "us-market::no")
 
     def test_no_event_match(self):
         mapper = self.setup_mapper()
@@ -307,14 +331,70 @@ class MappingTests(unittest.TestCase):
         self.assertTrue(report["candidates"][0]["rules_status"].startswith("warning:"))
         self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
 
-    def test_same_day_time_difference_is_only_a_near_match(self):
-        mapper = self.setup_mapper()
-        self.us_event["startTime"] = self.us_event["markets"][0]["gameStartTime"] = "2026-09-10T17:10:00Z"
-        report = mapper.inspect("111", Side.YES)
-        self.assertEqual(report["identity_matches"], 0)
-        self.assertEqual(len(report["near_matches"]), 1)
+    def test_movable_tennis_clock_needs_same_tournament_date_and_round(self):
+        mapper = self.setup_mapper(fixture(sport="tennis", league="atp"))
+        for event in (self.event, self.us_event):
+            event.update(competition="US Open", round="Semifinal")
+        self.us_event["startTime"] = self.us_event["markets"][0]["gameStartTime"] = "2026-09-10T22:05:00Z"
+        self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
+        for key, value in (("competition", "Other Open"), ("round", "Final"),
+                           ("startTime", "2026-09-11T22:05:00Z")):
+            with self.subTest(key=key):
+                mapper = self.setup_mapper(fixture(sport="tennis", league="atp"))
+                for event in (self.event, self.us_event):
+                    event.update(competition="US Open", round="Semifinal")
+                self.us_event[key] = value
+                if key == "startTime":
+                    self.us_event["markets"][0]["gameStartTime"] = value
+                with self.assertRaises(MappingRejected):
+                    mapper.resolve("111", Side.YES)
+
+    def test_moved_tennis_clock_without_tournament_fails_closed(self):
+        mapper = self.setup_mapper(fixture(sport="tennis", league="atp"))
+        self.us_event["startTime"] = self.us_event["markets"][0]["gameStartTime"] = "2026-09-10T22:05:00Z"
         with self.assertRaisesRegex(MappingRejected, "scheduled mismatch"):
             mapper.resolve("111", Side.YES)
+
+    def test_league_aliases_preserve_sport_identity(self):
+        for sport, source_league, us_league in (("football", "CFB", "NCAA Football"),
+                ("basketball", "CBB", "NCAA Basketball"), ("tennis", "ITFME", "ITF Men"),
+                ("tennis", "ITFWO", "ITF Women")):
+            with self.subTest(league=source_league):
+                mapper = self.setup_mapper(fixture(sport=sport, league=source_league))
+                self.us_event["league"] = us_league
+                self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
+
+    def test_participant_accents_and_punctuation_are_equivalent(self):
+        data = fixture(sport="tennis", league="atp", kind="moneyline", line=None,
+                       labels=("J. Sinner", "Carlos Alcaraz"))
+        data[0]["teams"] = [{"name": "J. Sinner"}, {"name": "Carlos Alcaraz"}]
+        data[2]["teams"] = [{"name": "J Sinner"}, {"name": "Carlos Alcaráz"}]
+        data[2]["markets"][0]["marketSides"][1]["description"] = "Carlos Alcaráz"
+        mapper = self.setup_mapper(data)
+        self.assertEqual(mapper.resolve("222", Side.YES), "us-market::no")
+
+    def test_total_outcome_signed_numeric_line_is_verified(self):
+        mapper = self.setup_mapper(fixture(labels=("Over 9.5", "Under 9.5")))
+        target = self.us_event["markets"][0]
+        target["marketSides"] = [{"long": True, "description": "Over"}, {"long": False, "description": "Under"}]
+        self.assertEqual(mapper.resolve("222", Side.YES), "us-market::no")
+        mapper = self.setup_mapper(fixture(labels=("Over 8.5", "Under 8.5")))
+        with self.assertRaisesRegex(MappingRejected, "total outcome line conflicts"):
+            mapper.resolve("111", Side.YES)
+
+    def test_first_five_period_aliases_match_without_full_game_collision(self):
+        mapper = self.setup_mapper(fixture(kind="f5_totals"))
+        self.us_event["markets"][0]["sportsMarketType"] = "baseball_team_first_five_innings_total"
+        self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
+        mapper = self.setup_mapper(fixture(kind="f5_totals"))
+        self.us_event["markets"][0]["sportsMarketType"] = "totals"
+        with self.assertRaisesRegex(MappingRejected, "period mismatch"):
+            mapper.resolve("111", Side.YES)
+
+    def test_team_sport_small_clock_difference_matches(self):
+        mapper = self.setup_mapper()
+        self.us_event["startTime"] = self.us_event["markets"][0]["gameStartTime"] = "2026-09-10T17:10:00Z"
+        self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
 
     def test_game_first_half_total_type_matches_without_becoming_team_total(self):
         mapper = self.setup_mapper(fixture(sport="football", league="nfl", kind="first_half_totals"))

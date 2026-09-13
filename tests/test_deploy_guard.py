@@ -17,8 +17,14 @@ class ReadyKalshi:
     def supports_immediate_orders(self):
         return True
 
-    def available_cash_usd(self):
+    def available_cash_usd(self, exchange_index=None):
         return self.cash
+
+    def get_market(self, ticker):
+        return {"ticker": ticker, "status": "open", "exchange_index": 3}
+
+    def get_orderbook(self, ticker):
+        return OrderBook(Exchange.KALSHI, ticker, [self.level], [self.level])
 
     def get_best_ask(self, ticker, side):
         return self.level
@@ -104,6 +110,57 @@ def executable_opportunity():
 
 
 class DeployGuardTests(unittest.TestCase):
+    def test_required_shard_balance_is_checked_before_either_order(self):
+        class ShardedKalshi(ReadyKalshi):
+            def available_cash_usd(self, exchange_index=None):
+                self.checked_index = exchange_index
+                return Decimal("1000") if exchange_index is None else Decimal("0.01")
+        kalshi, poly = ShardedKalshi(), ReadyPolymarket()
+        ok, message = TradeExecutor(kalshi, poly).execute_fast(executable_opportunity(), workflow="run-hot-arb")
+        self.assertFalse(ok)
+        self.assertIn("kalshi_shard_balance_insufficient", message)
+        self.assertEqual(kalshi.checked_index, 3)
+        self.assertEqual(kalshi.orders + poly.orders, [])
+
+    def test_shard_must_cover_notional_and_fees(self):
+        kalshi, poly = ReadyKalshi(cash=Decimal("1.35")), ReadyPolymarket()
+        ok, message = TradeExecutor(kalshi, poly).execute_fast(executable_opportunity(), workflow="run-hot-arb")
+        self.assertFalse(ok)
+        self.assertIn("kalshi_shard_balance_insufficient", message)
+        self.assertEqual(kalshi.orders + poly.orders, [])
+
+    def test_unresolved_or_changed_shard_blocks_all_orders(self):
+        for index in (None, -1, "3", True):
+            with self.subTest(index=index):
+                class UnknownShard(ReadyKalshi):
+                    def get_market(self, ticker):
+                        return {"ticker": ticker, "status": "open", "exchange_index": index}
+                kalshi, poly = UnknownShard(), ReadyPolymarket()
+                ok, message = TradeExecutor(kalshi, poly).execute_fast(executable_opportunity(), workflow="run-hot-arb")
+                self.assertFalse(ok)
+                self.assertIn("shard lookup failed", message)
+                self.assertEqual(kalshi.orders + poly.orders, [])
+        class ChangedShard(ReadyKalshi):
+            reads = 0
+            def get_market(self, ticker):
+                self.reads += 1
+                return {"ticker": ticker, "status": "open", "exchange_index": self.reads}
+        kalshi, poly = ChangedShard(), ReadyPolymarket()
+        ok, message = TradeExecutor(kalshi, poly).execute_fast(executable_opportunity(), workflow="run-hot-arb")
+        self.assertFalse(ok)
+        self.assertIn("exchange_index changed", message)
+        self.assertEqual(kalshi.orders + poly.orders, [])
+
+    def test_shard_balance_lookup_failure_blocks_all_orders(self):
+        class FailedBalance(ReadyKalshi):
+            def available_cash_usd(self, exchange_index=None):
+                raise RuntimeError("shard unavailable")
+        kalshi, poly = FailedBalance(), ReadyPolymarket()
+        ok, message = TradeExecutor(kalshi, poly).execute_fast(executable_opportunity(), workflow="run-hot-arb")
+        self.assertFalse(ok)
+        self.assertIn("shard balance failed", message)
+        self.assertEqual(kalshi.orders + poly.orders, [])
+
     def test_executor_reports_exact_opportunity_blocker(self):
         opportunity = ArbOpportunity(
             pair_name="Blocked Detail",
@@ -212,7 +269,7 @@ class DeployGuardTests(unittest.TestCase):
                 self.book_calls = 0
 
             def get_market(self, ticker):
-                return {"ticker": ticker, "status": "open"}
+                return {"ticker": ticker, "status": "open", "exchange_index": 3}
 
             def get_orderbook(self, ticker):
                 self.book_calls += 1
@@ -255,6 +312,7 @@ class DeployGuardTests(unittest.TestCase):
         self.assertIn("missing leg completed after first-leg fill retry", message)
         self.assertEqual(len(polymarket.orders), 1)
         self.assertEqual(len(kalshi.orders), 2)
+        self.assertEqual([o["exchange_index"] for o in kalshi.orders], [3, 3])
         self.assertEqual(kalshi.orders[1]["price_cents"], 47)
         self.assertIsNotNone(executor.last_submitted_opportunity)
         self.assertEqual(
@@ -269,7 +327,7 @@ class DeployGuardTests(unittest.TestCase):
                 self.book_calls = 0
 
             def get_market(self, ticker):
-                return {"ticker": ticker, "status": "open"}
+                return {"ticker": ticker, "status": "open", "exchange_index": 3}
 
             def get_orderbook(self, ticker):
                 self.book_calls += 1
@@ -341,7 +399,7 @@ class DeployGuardTests(unittest.TestCase):
     def test_executor_blocks_polymarket_when_kalshi_market_is_inactive(self):
         class InactiveKalshi(ReadyKalshi):
             def get_market(self, ticker):
-                return {"ticker": ticker, "status": "closed"}
+                return {"ticker": ticker, "status": "closed", "exchange_index": 3}
 
         polymarket = ReadyPolymarket()
         executor = TradeExecutor(InactiveKalshi(), polymarket)
@@ -355,7 +413,7 @@ class DeployGuardTests(unittest.TestCase):
     def test_executor_blocks_polymarket_when_kalshi_fok_depth_is_insufficient(self):
         class ThinKalshi(ReadyKalshi):
             def get_market(self, ticker):
-                return {"ticker": ticker, "status": "open"}
+                return {"ticker": ticker, "status": "open", "exchange_index": 3}
 
             def get_orderbook(self, ticker):
                 return OrderBook(
@@ -389,7 +447,7 @@ class DeployGuardTests(unittest.TestCase):
         submitted, message = executor.execute_fast(executable_opportunity(), workflow="run-hot-arb")
 
         self.assertTrue(submitted)
-        self.assertIn("fast path skipped balance checks and REST book refresh", message)
+        self.assertIn("fast path uses submission preflight and skips sizing REST refresh", message)
         self.assertIn("orders submitted", message)
 
     def test_executor_final_guard_blocks_same_side_of_fifty_before_any_order(self):
@@ -555,6 +613,7 @@ class DeployGuardTests(unittest.TestCase):
             ),
         )
 
+        executor.kalshi.level = BookLevel(31, Decimal("3"))
         submitted, message = executor.execute_fast(opportunity, workflow="run-hot-arb")
 
         self.assertTrue(submitted)

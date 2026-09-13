@@ -766,6 +766,28 @@ class ExchangeOrderTests(unittest.TestCase):
         self.assertEqual(payload["side"], "bid")
         self.assertEqual(payload["price"], "0.4000")
 
+    def test_kalshi_shard_balance_uses_explicit_index_and_cent_units(self):
+        for response, expected in (({"balance": 135}, Decimal("1.35")),
+                                   ({"balance": 9999}, Decimal("99.99")),
+                                   ({"balance_dollars": "1.2345"}, Decimal("1.2345"))):
+            with self.subTest(response=response):
+                http = FakeHttp(get_responses=[response])
+                client = KalshiClient("https://example.test", http=http)
+                with patch.object(client, "_auth_headers", return_value={}):
+                    self.assertEqual(client.available_cash_usd(exchange_index=7), expected)
+                self.assertEqual(http.calls[0][1], {"exchange_index": 7})
+
+    def test_kalshi_order_routes_to_resolved_shard(self):
+        http = FakeHttp()
+        client = KalshiClient("https://example.test", http=http)
+        with patch.object(client, "_auth_headers", return_value={}):
+            client.create_order("K", Side.NO, 3, 31, exchange_index=7)
+        payload = http.calls[0][1]
+        self.assertEqual(payload["exchange_index"], 7)
+        self.assertEqual(payload["side"], "ask")
+        self.assertEqual(payload["price"], "0.6900")
+        self.assertEqual(payload["time_in_force"], "fill_or_kill")
+
     def test_kalshi_available_cash_reads_portfolio_balance(self):
         http = FakeHttp(get_responses=[{"balance": 12345}])
         client = KalshiClient(

@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import base64
 import importlib.util
-import json
 import logging
 import os
-import time
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -16,7 +14,6 @@ from .international_mapping import InternationalMarketMapper
 
 LOG = logging.getLogger(__name__)
 REF_SEPARATOR = "::"
-ORIENTATION_CACHE_SECONDS = 300.0
 ORIENTATION_MAX_DEVIATION_CENTS = Decimal("15")
 ORIENTATION_MIN_SEPARATION_CENTS = Decimal("10")
 CONFIRMED_STATES = {"order_state_filled", "filled"}
@@ -53,9 +50,6 @@ class PolymarketUSClient:
         self.timeout = timeout
         self._sdk_client = sdk_client
         self.international_mapper = InternationalMarketMapper(self, gamma_url, http)
-        self._predictionhunt_orientation_cache: dict[
-            tuple[str, str], tuple[float, str]
-        ] = {}
 
     def _client(self) -> Any:
         if self._sdk_client is None:
@@ -115,21 +109,12 @@ class PolymarketUSClient:
         market_id: str,
         side: Side,
         source_url: str | None = None,
+        source_price_cents: Decimal | None = None,
     ) -> str:
         current_slug, encoded_side = self._split_ref(market_id)
         if current_slug.isdigit():
-            cache_key = (current_slug, side.value)
-            now = time.monotonic()
-            cached = self._predictionhunt_orientation_cache.get(cache_key)
-            if cached and cached[0] > now:
-                return cached[1]
             mapped = self.international_mapper.resolve(current_slug, side)
-            oriented = self._price_confirm_numeric_mapping(current_slug, mapped)
-            self._predictionhunt_orientation_cache[cache_key] = (
-                now + ORIENTATION_CACHE_SECONDS,
-                oriented,
-            )
-            return oriented
+            return self._price_confirm_numeric_mapping(current_slug, mapped, source_price_cents, side)
         # Already resolved references retain their venue orientation.
         if encoded_side is not None:
             return self._ref(current_slug, encoded_side)
@@ -153,124 +138,54 @@ class PolymarketUSClient:
             f"Polymarket US market slug or URL; received {market_id!r}{detail}"
         )
 
-    def _price_confirm_numeric_mapping(self, token_id: str, mapped_ref: str) -> str:
-        """Confirm local US YES/NO orientation after exact contract identity matching.
-
-        International/US prices never establish contract identity. They are only
-        used here to decide which side of the already-verified US binary contract
-        corresponds to the International outcome token. Ambiguous comparisons fail
-        closed, while unavailable International price metadata leaves the exact
-        structured mapping unchanged and the downstream cross-50 guard intact.
-        """
-        try:
-            source_price = self._international_token_price_cents(token_id)
-        except Exception as exc:
-            LOG.warning(
-                "international_token=%s price orientation unavailable: %s",
-                token_id,
-                exc,
-            )
-            return mapped_ref
-        if source_price is None:
-            return mapped_ref
-
+    def _price_confirm_numeric_mapping(
+        self, token_id: str, mapped_ref: str, source_price_cents: Decimal | None = None,
+        predictionhunt_side: Side = Side.YES
+    ) -> str:
+        """Prices may veto semantic orientation; they never choose or flip it."""
+        report = self.international_mapper.inspect(token_id, predictionhunt_side)
+        if (report.get("international_closed") or report.get("unresolved_candidates") or
+                len(report["candidates"]) != 1):
+            raise RuntimeError("mapping rejected: semantic identity no longer unique or active")
+        selected = next(c for c in report["candidates"]
+                        if f"{c['us_slug']}::{c['us_outcome']}" == mapped_ref)
+        if selected.get("rules_status", "exact") != "exact" and not selected["rules_status"].startswith("warning:"):
+            raise RuntimeError("mapping rejected: settlement semantics changed")
         slug, structured_side = self._split_ref(mapped_ref)
-        if structured_side is None:
-            raise RuntimeError(
-                "polymarket_us_price_orientation_unverified: mapped US reference "
-                "is missing its YES/NO side"
-            )
-        data = self._book_data(slug)
-        yes_level = min(
-            self._offer_levels(data),
-            key=lambda level: level.price_cents,
-            default=None,
-        )
-        no_level = min(
-            self._no_ask_levels(data),
-            key=lambda level: level.price_cents,
-            default=None,
-        )
-        if yes_level is None or no_level is None:
-            raise RuntimeError(
-                "polymarket_us_price_orientation_unverified: both US YES and NO "
-                "asks are required"
-            )
-
-        yes_price = Decimal(yes_level.price_cents)
-        no_price = Decimal(no_level.price_cents)
-        yes_diff = abs(yes_price - source_price)
-        no_diff = abs(no_price - source_price)
-        best_diff = min(yes_diff, no_diff)
-        separation = abs(yes_diff - no_diff)
-        if best_diff > ORIENTATION_MAX_DEVIATION_CENTS:
-            raise RuntimeError(
-                "polymarket_us_price_orientation_unverified: International token "
-                f"price={_decimal_text(source_price)}c does not match US YES={yes_level.price_cents}c "
-                f"or NO={no_level.price_cents}c within {ORIENTATION_MAX_DEVIATION_CENTS}c"
-            )
-        if separation < ORIENTATION_MIN_SEPARATION_CENTS:
-            raise RuntimeError(
-                "polymarket_us_price_orientation_ambiguous: International token "
-                f"price={_decimal_text(source_price)}c US YES={yes_level.price_cents}c "
-                f"US NO={no_level.price_cents}c"
-            )
-
-        selected_side = Side.YES if yes_diff < no_diff else Side.NO
-        if selected_side is not structured_side:
-            LOG.warning(
-                "international_token=%s corrected US side orientation structured=%s "
-                "price_confirmed=%s source=%sc us_yes=%sc us_no=%sc",
-                token_id,
-                structured_side.value,
-                selected_side.value,
-                _decimal_text(source_price),
-                yes_level.price_cents,
-                no_level.price_cents,
-            )
-        else:
-            LOG.info(
-                "international_token=%s confirmed US side orientation=%s "
-                "source=%sc us_yes=%sc us_no=%sc",
-                token_id,
-                selected_side.value,
-                _decimal_text(source_price),
-                yes_level.price_cents,
-                no_level.price_cents,
-            )
-        return self._ref(slug, selected_side)
-
-    def _international_token_price_cents(self, token_id: str) -> Decimal | None:
-        mapper = self.international_mapper
-        http = getattr(mapper, "http", None)
-        gamma_url = str(getattr(mapper, "gamma_url", "") or "").rstrip("/")
-        if http is None or not gamma_url or not hasattr(http, "get_json"):
-            return None
-        raw = http.get_json(
-            f"{gamma_url}/markets",
-            {"clob_token_ids": token_id},
-        )
-        rows = raw if isinstance(raw, list) else raw.get("markets", []) if isinstance(raw, dict) else []
-        matched = [
-            market
-            for market in rows
-            if isinstance(market, dict)
-            and token_id in [str(value) for value in _json_array(market.get("clobTokenIds"))]
-        ]
-        if len(matched) != 1:
-            return None
-        market = matched[0]
-        token_ids = [str(value) for value in _json_array(market.get("clobTokenIds"))]
-        prices = _json_array(market.get("outcomePrices"))
-        if len(token_ids) != len(prices) or token_id not in token_ids:
-            return None
-        try:
-            price = Decimal(str(prices[token_ids.index(token_id)]))
-        except Exception:
-            return None
-        if not price.is_finite() or price <= 0 or price >= 1:
-            return None
-        return price * Decimal("100")
+        source = None if source_price_cents is None else Decimal(source_price_cents)
+        yes_price = no_price = None
+        if source is not None:
+            if not source.is_finite() or not 0 < source < 100:
+                raise RuntimeError("mapping rejected: invalid PredictionHunt source price")
+            data = self._book_data(slug)
+            yes_level = min(self._offer_levels(data), key=lambda x: x.price_cents, default=None)
+            no_level = min(self._no_ask_levels(data), key=lambda x: x.price_cents, default=None)
+            if yes_level is None or no_level is None:
+                raise RuntimeError("mapping rejected: orientation prices unavailable")
+            yes_price, no_price = Decimal(yes_level.price_cents), Decimal(no_level.price_cents)
+            intended = yes_price if structured_side is Side.YES else no_price
+            opposite = no_price if structured_side is Side.YES else yes_price
+            # Only strong evidence of reversed orientation is suspicious. Near-50
+            # quotes and ordinary arbitrage discrepancies cannot identify a side.
+            if (abs(intended - source) > ORIENTATION_MAX_DEVIATION_CENTS and
+                    abs(intended - source) - abs(opposite - source) >= ORIENTATION_MIN_SEPARATION_CENTS):
+                LOG.warning("mapping rejected: international_token=%s sport=%s us_slug=%s structured_outcome=%s "
+                            "structured_us_side=%s source_price=%s us_yes=%s us_no=%s "
+                            "reason=orientation_price_suspicious", token_id,
+                            report["fingerprint"]["event"]["sport"], slug,
+                            report["fingerprint"]["outcome"], structured_side.value,
+                            source, yes_price, no_price)
+                raise RuntimeError("mapping rejected: orientation_price_suspicious")
+        LOG.info("international_token=%s sport=%s intl_outcome=%s us_slug=%s "
+                 "us_outcome=%s us_side=%s source_price=%s us_yes=%s us_no=%s "
+                 "line=%s period=%s league=%s competition=%s round=%s mapping=exact",
+                 token_id, report["fingerprint"]["event"]["sport"], report["fingerprint"]["outcome"],
+                 slug, selected["semantic_outcome"], structured_side.value, source, yes_price, no_price,
+                 report["fingerprint"].get("line"), report["fingerprint"].get("period"),
+                 report["fingerprint"]["event"].get("league"),
+                 report["fingerprint"]["event"].get("competition"),
+                 report["fingerprint"]["event"].get("round"))
+        return mapped_ref
 
     def resolve_clob_token_id(self, market_id: str, side: Side) -> str:
         return self.resolve_predictionhunt_market(market_id, side)
@@ -498,19 +413,6 @@ class PolymarketUSClient:
             "polymarket_order_state_uncertain: Polymarket US FOK order was not "
             f"confirmed filled state={state or 'missing'} order_id={order_id or 'missing'}: {raw}"
         )
-
-
-def _json_array(value: Any) -> list[Any]:
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except ValueError:
-            return []
-    return value if isinstance(value, list) else []
-
-
-def _decimal_text(value: Decimal) -> str:
-    return format(Decimal(value).quantize(Decimal("0.01")), "f").rstrip("0").rstrip(".")
 
 
 def _levels(raw_levels: Any, reverse: bool) -> list[BookLevel]:

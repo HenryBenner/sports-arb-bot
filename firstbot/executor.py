@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 
 from .config import Settings
 from .exchanges import KalshiClient, PolymarketClient
-from .fees import total_cost_adjustment_cents
+from .fees import total_cost_adjustment_cents, leg_fee_cents_per_contract
 from .models import ArbOpportunity, BookLevel, EVOpportunity, Exchange, Side
 from .models import ArbLeg
 from .models import OrderBook
@@ -102,7 +103,7 @@ class TradeExecutor:
         except Exception as exc:
             return False, f"fast path blocked before order submission: {exc}"
         prefix = (
-            "fast path skipped balance checks and REST book refresh; "
+            "fast path uses submission preflight and skips sizing REST refresh; "
             f"smallest_equal_size={opportunity.buy_yes.size} "
             f"gross={_decimal_text(Decimal(opportunity.gross_cost_cents))}c "
             f"net={_decimal_text(opportunity.net_profit_cents)}c"
@@ -120,6 +121,21 @@ class TradeExecutor:
                     False,
                     f"live opposite-price guard failed before order submission: {cross_50_blocker}",
                 )
+        try:
+            leg = _kalshi_leg(opportunity)
+            if leg is not None:
+                market = self.kalshi.get_market(leg.market_id)
+                if market.get("ticker") != leg.market_id:
+                    raise RuntimeError("market ticker identity mismatch")
+                index = market.get("exchange_index")
+                if type(index) is not int or index < 0:
+                    raise RuntimeError("market missing valid exchange_index")
+                routed = replace(leg, exchange_index=index)
+                opportunity = replace(opportunity, **{
+                    "buy_yes" if leg is opportunity.buy_yes else "buy_no": routed
+                })
+        except Exception as exc:
+            return False, f"kalshi_preflight_unavailable before polymarket order: shard lookup failed: {exc}"
         preflight_blocker = self._submission_preflight_block_reason(opportunity)
         if preflight_blocker:
             return False, preflight_blocker
@@ -216,6 +232,7 @@ class TradeExecutor:
                 count=count,
                 price_cents=leg.price_cents,
                 time_in_force="fill_or_kill",
+                exchange_index=leg.exchange_index,
             )
         if leg.exchange is Exchange.POLYMARKET:
             return self.polymarket.buy(
@@ -577,7 +594,10 @@ class TradeExecutor:
                 opportunity,
             )
             balance_blocker = balance_future.result()
-            kalshi_blocker = kalshi_future.result()
+            try:
+                kalshi_blocker = kalshi_future.result()
+            except Exception as exc:
+                kalshi_blocker = f"kalshi_preflight_unavailable before polymarket order: {exc}"
         return balance_blocker or kalshi_blocker
 
     def _kalshi_preflight_block_reason(self, opportunity: ArbOpportunity) -> str | None:
@@ -587,21 +607,48 @@ class TradeExecutor:
         if hasattr(self.kalshi, "get_market"):
             try:
                 market = self.kalshi.get_market(kalshi_leg.market_id)
+                if not isinstance(market, dict) or market.get("ticker") != kalshi_leg.market_id:
+                    raise RuntimeError("market ticker identity mismatch")
             except Exception as exc:
                 return f"kalshi_preflight_unavailable before polymarket order: market check failed: {exc}"
+            if market.get("exchange_index") != kalshi_leg.exchange_index:
+                return "kalshi_preflight_unavailable before polymarket order: exchange_index changed"
+            if str(market.get("status") or "").lower() not in {"active", "open", "opened", "trading", "live"}:
+                return "kalshi_market_not_active before polymarket order: missing or non-trading market status"
             inactive_reason = _kalshi_market_inactive_reason(market)
             if inactive_reason:
                 return (
                     "kalshi_market_not_active before polymarket order: "
                     f"{kalshi_leg.market_id} {inactive_reason}"
                 )
+        try:
+            if kalshi_leg.exchange_index is None:
+                raise RuntimeError("unresolved exchange_index")
+            available = self.kalshi.available_cash_usd(exchange_index=kalshi_leg.exchange_index)
+            # Reserve the approved limit notional plus the existing fee calculation.
+            fee_leg = replace(kalshi_leg, avg_price_cents=None, fee_price_levels=())
+            fee_settings = SimpleNamespace(
+                kalshi_fee_rate=getattr(self.settings, "kalshi_fee_rate", Decimal("0.07"))
+            )
+            fees = leg_fee_cents_per_contract(fee_leg, fee_settings)
+            required = _leg_notional_usd(kalshi_leg) + fees * kalshi_leg.size / Decimal("100")
+            if not available.is_finite() or available < required:
+                return ("kalshi_shard_balance_insufficient before polymarket order: "
+                        f"exchange_index={kalshi_leg.exchange_index} available={available} required={required}")
+        except Exception as exc:
+            return f"kalshi_preflight_unavailable before polymarket order: shard balance failed: {exc}"
         if not hasattr(self.kalshi, "get_orderbook"):
-            return None
+            return "kalshi_preflight_unavailable before polymarket order: missing orderbook"
         try:
             book: OrderBook = self.kalshi.get_orderbook(kalshi_leg.market_id)
         except Exception as exc:
             return f"kalshi_preflight_unavailable before polymarket order: orderbook check failed: {exc}"
+        if book.market_id != kalshi_leg.market_id:
+            return "kalshi_preflight_unavailable before polymarket order: orderbook ticker mismatch"
         levels = book.yes_asks if kalshi_leg.side is Side.YES else book.no_asks
+        if any(not Decimal(level.size).is_finite() or Decimal(level.size) < 0 or
+               not 0 < int(level.price_cents) < 100 for level in levels):
+            return "kalshi_preflight_unavailable before polymarket order: invalid orderbook depth"
         executable_size = sum(
             (
                 Decimal(level.size)

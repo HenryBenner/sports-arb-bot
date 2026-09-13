@@ -32,7 +32,12 @@ LEAGUE_SPORTS = {"mlb": "baseball", "npb": "baseball", "kbo": "baseball",
                  "nfl": "football", "cfb": "football", "nba": "basketball",
                  "wnba": "basketball", "cbb": "basketball", "nhl": "hockey",
                  "atp": "tennis", "wta": "tennis", "ufc": "mma"}
-SPORT_ALIASES = {"american football": "football", "ice hockey": "hockey", "mixed martial arts": "mma"}
+LEAGUE_ALIASES = {"ncaa football": "cfb", "ncaa-football": "cfb", "ncaa basketball": "cbb",
+                  "ncaa-basketball": "cbb", "itfme": "itf men", "itf-men": "itf men",
+                  "itfwo": "itf women", "itf-women": "itf women", "atp challenger": "challenger"}
+LEAGUE_SPORTS.update({"itf men": "tennis", "itf women": "tennis", "challenger": "tennis"})
+MOVABLE_START_SPORTS = {"tennis", "cricket", "mma", "boxing"}
+SPORT_ALIASES = {"american football": "football", "ice hockey": "hockey", "ice-hockey": "hockey", "american-football": "football", "mixed martial arts": "mma"}
 
 
 class MappingRejected(RuntimeError):
@@ -64,8 +69,14 @@ def first(data: dict, *names: str) -> Any:
     return next((data[n] for n in names if data.get(n) not in (None, "", [])), None)
 
 
+def participant_name(value: Any) -> str:
+    normalized = unicodedata.normalize("NFKD", text(value))
+    normalized = "".join(c for c in normalized if not unicodedata.combining(c))
+    return " ".join(re.sub(r"[^\w\s+-]", " ", normalized).split())
+
+
 def name(value: Any) -> str:
-    return text(first(value, "name", "displayName", "slug")) if isinstance(value, dict) else text(value)
+    return participant_name(first(value, "name", "displayName", "slug")) if isinstance(value, dict) else participant_name(value)
 
 
 def timestamp(value: Any) -> datetime:
@@ -96,7 +107,7 @@ def entities(event: dict) -> list[dict]:
 
 
 def entity_aliases(entity: dict) -> set[str]:
-    return {name(entity), *(text(entity.get(k)) for k in ("alias", "safeName", "abbreviation")),
+    return {name(entity), *(participant_name(entity.get(k)) for k in ("alias", "safeName", "abbreviation")),
             *entity.get("_mapping_aliases", [])} - {""}
 
 
@@ -141,6 +152,7 @@ def sport_league(event: dict) -> tuple[str, str]:
             raise MappingRejected("conflicting event leagues")
     if not league:
         league = re.sub(r"-20\d\d$", "", text(event.get("seriesSlug")))
+    league = LEAGUE_ALIASES.get(league, league)
     raw_sport = event.get("sport")
     sport = name(raw_sport)
     is_gamma_league = isinstance(raw_sport, dict) and "sport" in raw_sport and "primaryTagId" in raw_sport
@@ -169,6 +181,7 @@ class EventFingerprint:
     game_number: str
     competition: str
     event_name: str
+    round: str
 
 
 def event_fingerprint(event: dict, market: dict) -> EventFingerprint:
@@ -176,39 +189,62 @@ def event_fingerprint(event: dict, market: dict) -> EventFingerprint:
     scheduled = timestamp(required(first(market, "gameStartTime", "scheduledStart") or
                                    first(event, "startTime", "scheduledStart"), "scheduled time"))
     event_start = first(event, "startTime", "scheduledStart")
-    if event_start and timestamp(event_start) != scheduled:
+    if event_start and timestamp(event_start) != scheduled and not (
+            sport in MOVABLE_START_SPORTS and timestamp(event_start).date() == scheduled.date()):
         raise MappingRejected("event/market scheduled time conflict")
+    for field, alias in (("round", "roundNumber"), ("gameNumber", "game_number")):
+        event_value, market_value = first(event, field, alias), first(market, field, alias)
+        if event_value is not None and market_value is not None and text(event_value) != text(market_value):
+            raise MappingRejected(f"event/market {field} conflict")
     teams = participants(event)
     title = required(text(event.get("title")), "event title")
     # Teams and precise start identify a fixture; non-matchup events also need title.
     event_name = "" if len(teams) == 2 and re.search(r"\s(?:vs\.?|versus|@)\s", title) else title
     return EventFingerprint(sport, league, teams, scheduled,
-                            text(first(event, "gameNumber", "game_number")),
-                            name(event.get("competition")), event_name)
+                            text(first(market, "gameNumber", "game_number") or first(event, "gameNumber", "game_number")),
+                            name(first(event, "competition", "tournament", "promotion", "card")), event_name,
+                            text(first(market, "round", "roundNumber") or first(event, "round", "roundNumber")))
 
 
-def market_kind(market: dict, sport: str) -> tuple[str, str]:
+def canonical_period(value: Any) -> str:
+    value = text(value).replace("-", "_").replace(" ", "_")
+    aliases = {"full_time": "full_time", "full_game": "full_game", "match": "full_game",
+               "first_5": "first_five_innings", "first_5_innings": "first_five_innings",
+               "first_five": "first_five_innings", "f5": "first_five_innings",
+               "1st_half": "first_half", "2nd_half": "second_half"}
+    for n, ordinal in enumerate(("first", "second", "third", "fourth"), 1):
+        aliases[f"q{n}"] = f"{ordinal}_quarter"
+        aliases[f"{n}_quarter"] = f"{ordinal}_quarter"
+        aliases[f"{ordinal}_quarter"] = f"{ordinal}_quarter"
+        aliases[f"{n}_period"] = f"{ordinal}_period"
+        aliases[f"{n}_set"] = f"{ordinal}_set"
+    return aliases.get(value, value)
+
+
+def _market_kind(market: dict, sport: str) -> tuple[str, str]:
     raw = required(text(market.get("sportsMarketType")), "sportsMarketType")
     raw = raw.removeprefix("sports_market_type_")
     simple = {"moneyline": "moneyline", "winner": "moneyline", "spread": "spread",
-              "spreads": "spread", "total": "total", "totals": "total"}
+              "spreads": "spread", "run_line": "spread", "puck_line": "spread",
+              "handicap": "spread", "total": "total", "totals": "total"}
     if raw in {"tennis_match_winner", "ufc_fight_winner"}:
         return "moneyline", "full_game"
     # Period/type names differ between feeds; preserve the actual period.
-    scopes = {"first_half": "first_half", "second_half": "second_half",
+    scopes = {"first_five_innings": "first_five_innings", "first_5_innings": "first_five_innings", "f5": "first_five_innings",
+              "first_half": "first_half", "second_half": "second_half",
               "q1": "first_quarter", "q2": "second_quarter",
               "q3": "third_quarter", "q4": "fourth_quarter"}
     for prefix, period in scopes.items():
         if raw.startswith(prefix + "_") and raw[len(prefix)+1:] in simple:
             return simple[raw[len(prefix)+1:]], period
     if raw in simple:
-        period = text(first(market, "period", "marketPeriod"))
+        period = canonical_period(first(market, "period", "marketPeriod"))
         question = text(market.get("question"))
         scope = re.search(r"(?:first|second|third|fourth|\d+(?:st|nd|rd|th)?)[ -]+(?:five[ -]+)?(?:innings?|half|quarter|period|set|map)\b", question)
         if scope:
-            if period and period != scope[0]:
+            if period and period != canonical_period(scope[0]):
                 raise MappingRejected("conflicting market period metadata")
-            period = scope[0]
+            period = canonical_period(scope[0])
         return simple[raw], period or ("full_time" if sport == "soccer" and raw == "moneyline" else "full_game")
     for entity_type in ("team", "game"):
         prefix = sport.replace(" ", "_") + f"_{entity_type}_"
@@ -216,9 +252,27 @@ def market_kind(market: dict, sport: str) -> tuple[str, str]:
             remainder = raw[len(prefix):]
             for suffix, kind in (("_winner", "moneyline"), ("_spread", "spread"), ("_total", "total")):
                 if remainder.endswith(suffix):
-                    return kind, remainder[:-len(suffix)]
+                    return kind, canonical_period(remainder[:-len(suffix)])
     # Generic contracts retain the complete specific type. No broad PROP collapse.
     return raw, text(first(market, "period", "marketPeriod")) or raw
+
+
+def market_kind(market: dict, sport: str) -> tuple[str, str]:
+    kind, period = _market_kind(market, sport)
+    explicit = canonical_period(first(market, "period", "marketPeriod"))
+    if explicit and explicit != period:
+        raise MappingRejected("conflicting market period metadata")
+    return kind, period
+
+
+def spread_label(label: str, event: dict) -> tuple[str, Decimal | None]:
+    match = re.fullmatch(r"(.+?)\s+([+-]\d+(?:\.\d+)?)", text(label))
+    if not match:
+        return outcome_name(label, event), None
+    participant = outcome_name(match[1], event)
+    if participant not in participants(event):
+        raise MappingRejected("spread outcome is not an event participant")
+    return participant, number(match[2])
 
 
 @dataclass(frozen=True)
@@ -234,7 +288,8 @@ class ContractFingerprint:
 
 
 def outcome_name(label: str, event: dict) -> str:
-    label = text(label)
+    raw_label = text(label)
+    label = participant_name(label)
     matches = set()
     for entity in entities(event):
         aliases = entity_aliases(entity)
@@ -242,7 +297,7 @@ def outcome_name(label: str, event: dict) -> str:
             matches.add(name(entity))
     if len(matches) > 1:
         raise MappingRejected(f"ambiguous outcome alias: {label}")
-    return next(iter(matches)) if matches else label
+    return next(iter(matches)) if matches else raw_label
 
 
 def fingerprint(event: dict, market: dict, label: str, team: str = "") -> ContractFingerprint:
@@ -251,12 +306,24 @@ def fingerprint(event: dict, market: dict, label: str, team: str = "") -> Contra
     question = required(text(market.get("question")), "exact market question")
     line = number(market.get("line"))
     subject = name(first(market, "subject", "player", "subjectName"))
-    outcome = outcome_name(required(label, "outcome name"), event)
-    universe = tuple(sorted(outcome_name(str(x), event) for x in values(market.get("outcomes"))))
+    def semantic_outcome(value: str) -> str:
+        if kind == "spread":
+            return spread_label(value, event)[0]
+        if kind == "total":
+            total = re.fullmatch(r"(over|under)\s+([+-]?\d+(?:\.\d+)?)", text(value))
+            if total:
+                if number(total[2]) != line:
+                    raise MappingRejected("total outcome line conflicts with market line")
+                return total[1]
+        return outcome_name(value, event)
+
+    outcome = semantic_outcome(required(label, "outcome name"))
+    signed_label_line = spread_label(label, event)[1] if kind == "spread" else None
+    universe = tuple(sorted(semantic_outcome(str(x)) for x in values(market.get("outcomes"))))
     if market.get("marketSides"):
-        universe = tuple(sorted(outcome_name(s.get("team") and name(s["team"]) or s.get("description", ""), event)
-                                if kind == "spread" else outcome_name(s.get("description", ""), event)
-                                for s in values(market["marketSides"])))
+        universe = tuple(sorted(semantic_outcome(
+            name(s["team"]) if kind == "spread" and s.get("team") else s.get("description", "")
+        ) for s in values(market["marketSides"])))
     if len(universe) != 2 or len(set(universe)) != 2:
         raise MappingRejected("missing or ambiguous contract outcome universe")
     if kind == "moneyline" and outcome in event_key.participants:
@@ -278,16 +345,21 @@ def fingerprint(event: dict, market: dict, label: str, team: str = "") -> Contra
         question = ""
     elif kind == "spread":
         required(line, "spread line")
-        outcomes = [outcome_name(str(x), event) for x in values(market.get("outcomes"))]
+        outcomes = [spread_label(str(x), event)[0] for x in values(market.get("outcomes"))]
         if team:
             outcome = outcome_name(team, event)
-            side_line = number(label) if re.fullmatch(r"[+-]?\d+(?:\.\d+)?", label) else None
+            side_line = signed_label_line
+            if side_line is None and re.fullmatch(r"[+-]?\d+(?:\.\d+)?", label):
+                side_line = number(label)
             if side_line is not None:
                 line = side_line
             else:
                 raise MappingRejected("missing critical metadata: signed US spread outcome line")
         elif outcome in event_key.participants and len(outcomes) == 2 and outcome in outcomes:
-            line = line if outcome == outcomes[0] else -line
+            expected_line = line if outcome == outcomes[0] else -line
+            if signed_label_line is not None and signed_label_line != expected_line:
+                raise MappingRejected("signed spread outcome line conflicts with market line")
+            line = expected_line
         else:
             # YES/NO spreads need an identical proposition; do not guess a team.
             return ContractFingerprint(event_key, kind, period, line, subject, question, outcome, universe)
@@ -303,6 +375,13 @@ def differences(a: Any, b: Any) -> list[str]:
     for field in fields(a):
         left, right = getattr(a, field.name), getattr(b, field.name)
         if left != right:
+            if field.name == "scheduled" and isinstance(a, EventFingerprint):
+                delta = abs((left - right).total_seconds())
+                movable = a.sport == b.sport and a.sport in MOVABLE_START_SPORTS
+                if left.date() == right.date() and (
+                        (movable and a.competition and a.competition == b.competition and delta <= 18 * 3600)
+                        or (not movable and delta <= 30 * 60)):
+                    continue
             if field.name == "event":
                 result.extend(differences(left, right))
             else:
@@ -414,7 +493,7 @@ class InternationalMarketMapper:
 
     def resolve(self, token: str, side: Side) -> str:
         # Side is a PredictionHunt group label; a numeric token already identifies
-        # its settlement outcome. For literal YES/NO, conflicting labels fail closed.
+        # its settlement outcome. The feed group label cannot override that token.
         with self._lock:
             return self._cached(("mapping", token, side), self.success_ttl,
                                 lambda: self._resolve_logged(token, side))
@@ -518,8 +597,6 @@ class InternationalMarketMapper:
 
     def _inspect(self, token: str, side: Side) -> dict:
         event, market, label = self._source(token, side)
-        if label in {"yes", "no"} and label != side.value:
-            raise MappingRejected(f"token outcome conflicts with PredictionHunt side: token={label} side={side.value}")
         source = fingerprint(event, market, label)
         names = [str(first(e, "name", "displayName") or "").strip() for e in entities(event)]
         query = (" vs. ".join(names) if len(names) == 2 and all(names) else
@@ -601,6 +678,7 @@ class InternationalMarketMapper:
                             rules_status = str(exc)
                         matches[f"{us_slug}::{us_side.value}"] = {
                             "us_slug": us_slug, "us_outcome": us_side.value,
+                            "semantic_outcome": target.outcome,
                             "rules_status": rules_status, "us_question": detail.get("question"),
                             "international_rules": market.get("description"), "us_rules": detail.get("description"),
                         }

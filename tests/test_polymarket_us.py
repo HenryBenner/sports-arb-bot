@@ -82,6 +82,11 @@ class PolymarketUSClientTests(unittest.TestCase):
     def _mock_numeric_mapper(self, mapped="team-a-win::yes", source_price="0.94"):
         mapper = Mock()
         mapper.resolve.return_value = mapped
+        slug, side = mapped.split("::")
+        mapper.inspect.return_value = {
+            "candidates": [{"us_slug": slug, "us_outcome": side, "semantic_outcome": "Team A"}],
+            "fingerprint": {"outcome": "Team A", "event": {"sport": "baseball"}}
+        }
         mapper.gamma_url = "https://gamma.example"
         mapper.http.get_json.return_value = [{
             "clobTokenIds": '["123456", "654321"]',
@@ -121,44 +126,40 @@ class PolymarketUSClientTests(unittest.TestCase):
             "123456", Side.YES, "https://polymarket.us/event/team-a-win"), "team-a-win::no")
         mapper.resolve.assert_called_once_with("123456", Side.YES)
 
-    def test_numeric_token_price_can_correct_structured_us_side(self):
-        mapper = self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.94")
+    def test_numeric_token_price_cannot_flip_structured_us_side(self):
+        self._mock_numeric_mapper()
         self._set_binary_book("0.05", "0.05")
         with self.assertLogs("firstbot.exchanges.polymarket_us", level="WARNING") as logs:
-            result = self.client.resolve_predictionhunt_market("123456", Side.NO)
-        self.assertEqual(result, "team-a-win::no")
-        self.assertTrue(any("corrected US side orientation" in line for line in logs.output))
-        mapper.resolve.assert_called_once_with("123456", Side.NO)
+            with self.assertRaisesRegex(RuntimeError, "orientation_price_suspicious"):
+                self.client.resolve_predictionhunt_market("123456", Side.NO, source_price_cents=Decimal("94"))
+        self.assertIn("structured_us_side=yes", logs.output[0])
 
-    def test_numeric_token_price_confirms_structured_us_side(self):
-        mapper = self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.06")
+    def test_strong_orientation_discrepancy_rejects_without_close_price_match(self):
+        self._mock_numeric_mapper()
         self._set_binary_book("0.05", "0.05")
-        self.assertEqual(
-            self.client.resolve_predictionhunt_market("123456", Side.YES),
-            "team-a-win::yes",
-        )
+        with self.assertRaisesRegex(RuntimeError, "orientation_price_suspicious"):
+            self.client.resolve_predictionhunt_market("123456", Side.YES, source_price_cents=Decimal("75"))
 
-    def test_numeric_token_price_orientation_rejects_ambiguous_midpoint(self):
-        self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.50")
+    def test_predictionhunt_price_overrides_stored_gamma_price(self):
+        mapper = self._mock_numeric_mapper(source_price="0.94")
+        self._set_binary_book("0.05", "0.05")
+        self.assertEqual(self.client.resolve_predictionhunt_market(
+            "123456", Side.NO, source_price_cents=Decimal("6")), "team-a-win::yes")
+        mapper.http.get_json.assert_not_called()
+
+    def test_midpoint_prices_cannot_override_exact_semantics(self):
+        self._mock_numeric_mapper()
         self._set_binary_book("0.49", "0.49")
-        with self.assertRaisesRegex(RuntimeError, "price_orientation_ambiguous"):
-            self.client.resolve_predictionhunt_market("123456", Side.YES)
+        self.assertEqual(self.client.resolve_predictionhunt_market(
+            "123456", Side.YES, source_price_cents=Decimal("50")), "team-a-win::yes")
 
-    def test_numeric_token_price_orientation_rejects_far_prices(self):
-        self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.75")
+    def test_each_mapping_rechecks_current_source_price(self):
+        self._mock_numeric_mapper()
         self._set_binary_book("0.05", "0.05")
-        with self.assertRaisesRegex(RuntimeError, "price_orientation_unverified"):
-            self.client.resolve_predictionhunt_market("123456", Side.YES)
-
-    def test_numeric_orientation_result_is_cached(self):
-        mapper = self._mock_numeric_mapper(mapped="team-a-win::yes", source_price="0.94")
-        self._set_binary_book("0.05", "0.05")
-        first = self.client.resolve_predictionhunt_market("123456", Side.NO)
-        second = self.client.resolve_predictionhunt_market("123456", Side.NO)
-        self.assertEqual(first, "team-a-win::no")
-        self.assertEqual(second, first)
-        mapper.resolve.assert_called_once_with("123456", Side.NO)
-        mapper.http.get_json.assert_called_once()
+        self.assertEqual(self.client.resolve_predictionhunt_market(
+            "123456", Side.NO, source_price_cents=Decimal("6")), "team-a-win::yes")
+        with self.assertRaisesRegex(RuntimeError, "orientation_price_suspicious"):
+            self.client.resolve_predictionhunt_market("123456", Side.NO, source_price_cents=Decimal("94"))
 
     def test_encoded_outcome_controls_books_despite_feed_pair_label(self):
         levels = self.client.get_token_ask_levels("team-a-win::no", Side.YES)
