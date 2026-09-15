@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from .config import Settings
 from .executor import TradeExecutor
 from .fees import leg_fee_cents_per_contract
+from .hot import safe_exception_message
 from .models import ArbLeg, BookLevel, EVOpportunity, Exchange, Side
 
 
@@ -629,16 +630,21 @@ class SignalBotRunner:
                 await self.consume(stream, execute=execute, once=once)
                 return
             except Exception as exc:
+                exception_message = safe_exception_message(exc)
                 self._write_jsonl(
                     "signal_stream_errors.jsonl",
                     {
                         "timestamp": self.clock().isoformat(),
                         "action": "stream_error",
-                        "message": str(exc),
+                        "exchange": "predictionhunt",
+                        "market_id": "signal_channels",
+                        "exception_type": type(exc).__name__,
+                        "exception_message": exception_message,
+                        "message": exception_message,
                         "retry_seconds": retry_seconds,
                     },
                 )
-                print(f"signal stream error: {exc}; reconnecting in {retry_seconds}s")
+                print(f"signal stream error: {exception_message}; reconnecting in {retry_seconds}s")
                 if once:
                     return
                 await asyncio.sleep(retry_seconds)

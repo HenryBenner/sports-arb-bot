@@ -180,6 +180,42 @@ class PolymarketUSClientTests(unittest.TestCase):
     def test_balance_uses_us_buying_power(self):
         self.assertEqual(self.client.available_cash_usd(), Decimal("42.5"))
 
+    def test_transient_market_data_failure_retries_then_continues(self):
+        original = self.sdk.markets.book
+        self.sdk.markets.book = Mock(side_effect=[
+            RuntimeError("gateway.polymarket.us temporary gateway 502"),
+            original("team-a-win"),
+        ])
+        self.client._sleep = Mock()
+
+        levels = self.client.get_token_ask_levels("team-a-win::yes")
+
+        self.assertEqual(levels[0].price_cents, 62)
+        self.assertEqual(self.sdk.markets.book.call_count, 2)
+        self.client._sleep.assert_called_once_with(0.25)
+
+    def test_all_bounded_market_data_attempts_fail_closed(self):
+        self.sdk.markets.book = Mock(
+            side_effect=RuntimeError("Cloudflare access denied at gateway.polymarket.us")
+        )
+        self.client._sleep = Mock()
+
+        with self.assertRaisesRegex(RuntimeError, "access denied"):
+            self.client.get_token_ask_levels("team-a-win::yes")
+
+        self.assertEqual(self.sdk.markets.book.call_count, 3)
+        self.assertEqual(self.client._sleep.call_count, 2)
+
+    def test_live_order_submission_is_never_retried(self):
+        self.sdk.orders.create = Mock(
+            side_effect=RuntimeError("gateway.polymarket.us temporary gateway 502")
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "temporary gateway"):
+            self.client.buy("team-a-win::yes", 62, Decimal("5"))
+
+        self.sdk.orders.create.assert_called_once()
+
     def test_us_fee_uses_exchange_cent_rounding(self):
         schedule = self.client.get_taker_fee_schedule("team-a-win::yes")
         leg = ArbLeg(

@@ -19,6 +19,7 @@ from firstbot.hot import (
     HotTriggerEngine,
     HotWatchManager,
     LiveLegBook,
+    StreamFailure,
     _arb_record,
     _log_dir_path,
     _market_resolution_safety_reason,
@@ -27,10 +28,17 @@ from firstbot.hot import (
     _predictionhunt_trusted_outcome_keys,
     _requires_watch_quarantine,
     parse_datetime,
+    safe_exception_message,
 )
 from firstbot.models import ArbLeg, ArbOpportunity, BookLevel, Exchange, FeeSchedule, Side
 from firstbot.predictionhunt import PredictionHuntLeg, PredictionHuntOpportunity
 from firstbot.websockets import _remap_polymarket_token_side, parse_kalshi_message, parse_polymarket_message
+
+
+def test_stream_exception_message_is_nonempty_and_credentials_are_redacted():
+    empty = StreamFailure(RuntimeError())
+    assert empty.exception_message == "no exception message provided"
+    assert safe_exception_message(RuntimeError("Authorization: Bearer private-value")) == "Authorization=[redacted] [redacted]"
 
 
 NOW = datetime(2026, 6, 16, 12, 0, tzinfo=timezone.utc)
@@ -2265,7 +2273,9 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
             original_merge_streams = hot.merge_streams
 
             async def failing_merge_streams(streams, expires_at, clock):
-                async for update in original_merge_streams([FailingStream()], expires_at, clock):
+                stream = FailingStream()
+                stream.legs = watch.opportunity.legs
+                async for update in original_merge_streams([stream], expires_at, clock):
                     yield update
 
             hot.merge_streams = failing_merge_streams
@@ -2274,9 +2284,17 @@ class HotArbRunnerTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 hot.merge_streams = original_merge_streams
 
-            records = (Path(tmp) / "hot_candidates.jsonl").read_text(encoding="utf-8")
-            self.assertIn("stream_error", records)
-            self.assertIn("stream failed visibly", records)
+            records = [json.loads(line) for line in
+                       (Path(tmp) / "hot_candidates.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertTrue(records)
+            for record in records:
+                self.assertEqual(record["action"], "stream_error")
+                self.assertIn(record["exchange"], {"kalshi", "polymarket"})
+                self.assertTrue(record["market_id"])
+                self.assertTrue(record["side"])
+                self.assertEqual(record["exception_type"], "RuntimeError")
+                self.assertEqual(record["exception_message"], "stream failed visibly")
+                self.assertTrue(record["watch_id"])
 
     async def test_live_watch_repeats_smallest_equal_batches_and_persists_spend(self):
         class FakeKalshiClient:

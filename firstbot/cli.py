@@ -13,7 +13,7 @@ from .arb import verify_pair, verify_predictionhunt_opportunity
 from .config import Settings
 from .executor import TradeExecutor
 from .exchanges import KalshiClient, PolymarketClient, create_polymarket_client
-from .hot import HotArbRunner, LiveLegBook, merge_streams
+from .hot import HotArbRunner, LiveLegBook, merge_streams, stream_error_details
 from .http import HttpClient
 from .manual_sports_arb import ManualPairInput, ManualSportsArbRunner, load_mapping
 from .models import ArbLeg, Exchange, MarketPair, Side
@@ -1028,14 +1028,15 @@ async def _run_ws_probe(
             best = record["best_ask"]
             price = "none" if best is None else f"{best['price_cents']}c x {best['size']}"
             print(f"ws update {count}: {record['exchange']} {record['side']} {record['market_id']} ask={price}")
-    except RuntimeError as exc:
-        record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "action": "stream_error",
-            "message": str(exc),
-        }
+    except Exception as exc:
         with output.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, sort_keys=True) + "\n")
+            for detail in stream_error_details(exc):
+                record = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "action": "stream_error",
+                    **detail,
+                }
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
         raise
     print(f"ws probe complete: updates={count}")
 
@@ -1054,14 +1055,16 @@ async def _run_raw_ws_probe(streams: list, expires_at, output: Path) -> None:
                     }
                 )
         except Exception as exc:
-            await queue.put(
-                {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "exchange": exchange,
-                    "action": "stream_error",
-                    "message": str(exc),
-                }
-            )
+            for detail in stream_error_details(exc, stream):
+                if detail["exchange"] == "unknown":
+                    detail["exchange"] = exchange
+                await queue.put(
+                    {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "action": "stream_error",
+                        **detail,
+                    }
+                )
 
     labels = ["kalshi", "polymarket"]
     tasks = [asyncio.create_task(pump(label, stream)) for label, stream in zip(labels, streams)]

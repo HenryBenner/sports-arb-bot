@@ -349,11 +349,10 @@ class MappingTests(unittest.TestCase):
                 with self.assertRaises(MappingRejected):
                     mapper.resolve("111", Side.YES)
 
-    def test_moved_tennis_clock_without_tournament_fails_closed(self):
+    def test_moved_tennis_clock_without_tournament_uses_exact_fixture(self):
         mapper = self.setup_mapper(fixture(sport="tennis", league="atp"))
         self.us_event["startTime"] = self.us_event["markets"][0]["gameStartTime"] = "2026-09-10T22:05:00Z"
-        with self.assertRaisesRegex(MappingRejected, "scheduled mismatch"):
-            mapper.resolve("111", Side.YES)
+        self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
 
     def test_league_aliases_preserve_sport_identity(self):
         for sport, source_league, us_league in (("football", "CFB", "NCAA Football"),
@@ -363,6 +362,91 @@ class MappingTests(unittest.TestCase):
                 mapper = self.setup_mapper(fixture(sport=sport, league=source_league))
                 self.us_event["league"] = us_league
                 self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
+
+    def test_generic_itf_matches_unique_explicit_gender_fixture(self):
+        for explicit_league in ("itfwo", "itfme"):
+            with self.subTest(league=explicit_league):
+                data = fixture(sport="tennis", league="itf", kind="moneyline", line=None,
+                               labels=("Player A", "Player B"))
+                for event in (data[0], data[2]):
+                    event["title"] = "Player A vs. Player B"
+                    event["teams"] = [{"name": "Player A"}, {"name": "Player B"}]
+                    event["competition"] = "ITF Boston"
+                    event["round"] = "Round of 16"
+                data[2]["league"] = explicit_league
+                mapper = self.setup_mapper(data)
+                self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
+
+    def test_generic_itf_rejects_ambiguous_candidate_events(self):
+        data = fixture(sport="tennis", league="itf", kind="moneyline", line=None,
+                       labels=("Player A", "Player B"))
+        for event in (data[0], data[2]):
+            event["title"] = "Player A vs. Player B"
+            event["teams"] = [{"name": "Player A"}, {"name": "Player B"}]
+        mapper = self.setup_mapper(data)
+        second = deepcopy(self.us_event)
+        second["slug"] = "us-event-2"
+        second["league"] = "itfme"
+        second["markets"][0]["slug"] = "us-market-2"
+        self.us_event["league"] = "itfwo"
+        events = {self.us_event["slug"]: self.us_event, second["slug"]: second}
+        self.sdk.search.query.side_effect = lambda _params: {"events": [deepcopy(v) for v in events.values()]}
+        self.sdk.events.retrieve_by_slug.side_effect = lambda slug: deepcopy(events[slug])
+        with self.assertRaisesRegex(MappingRejected, "reason=ambiguous_fixture"):
+            mapper.resolve("111", Side.YES)
+
+    def test_explicit_conflicting_itf_gender_is_rejected(self):
+        mapper = self.setup_mapper(fixture(sport="tennis", league="itf men", kind="moneyline",
+                                           line=None, labels=("Houston Astros", "Philadelphia Phillies")))
+        self.us_event["league"] = "itf women"
+        with self.assertRaisesRegex(MappingRejected, "reason=league_conflict"):
+            mapper.resolve("111", Side.YES)
+
+    def test_tennis_clock_moves_with_structured_fixture_identity(self):
+        for league, minutes in (("wta", 5), ("itf", 20)):
+            with self.subTest(league=league):
+                mapper = self.setup_mapper(fixture(sport="tennis", league=league,
+                                                   kind="moneyline", line=None,
+                                                   labels=("Houston Astros", "Philadelphia Phillies")))
+                moved = f"2026-09-10T17:{5 + minutes:02d}:00Z"
+                self.us_event["startTime"] = moved
+                self.us_event["markets"][0]["gameStartTime"] = moved
+                self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
+
+    def test_tennis_conflicting_tournament_or_round_is_rejected(self):
+        for field, target_value, reason in (
+            ("competition", "Other Open", "reason=tournament_conflict"),
+            ("round", "Final", "reason=round_conflict"),
+        ):
+            with self.subTest(field=field):
+                mapper = self.setup_mapper(fixture(sport="tennis", league="wta",
+                                                   kind="moneyline", line=None,
+                                                   labels=("Houston Astros", "Philadelphia Phillies")))
+                self.event.update(competition="US Open", round="Semifinal")
+                self.us_event.update(competition="US Open", round="Semifinal")
+                self.us_event[field] = target_value
+                with self.assertRaisesRegex(MappingRejected, reason):
+                    mapper.resolve("111", Side.YES)
+
+    def test_tennis_different_players_are_rejected(self):
+        mapper = self.setup_mapper(fixture(sport="tennis", league="wta", kind="moneyline",
+                                           line=None, labels=("Houston Astros", "Philadelphia Phillies")))
+        self.us_event["teams"][1] = {"name": "Different Player"}
+        with self.assertRaisesRegex(MappingRejected, "reason=participant_mismatch"):
+            mapper.resolve("111", Side.YES)
+
+    def test_deterministic_soccer_league_aliases_match(self):
+        for source_league, us_league in (("por", "ligpor"), ("den", "sld")):
+            with self.subTest(source=source_league, target=us_league):
+                mapper = self.setup_mapper(fixture(sport="soccer", league=source_league))
+                self.us_event["league"] = us_league
+                self.assertEqual(mapper.resolve("111", Side.YES), "us-market::yes")
+
+    def test_distinct_soccer_competitions_remain_rejected(self):
+        mapper = self.setup_mapper(fixture(sport="soccer", league="por"))
+        self.us_event["league"] = "portuguese cup"
+        with self.assertRaisesRegex(MappingRejected, "reason=league_conflict"):
+            mapper.resolve("111", Side.YES)
 
     def test_participant_accents_and_punctuation_are_equivalent(self):
         data = fixture(sport="tennis", league="atp", kind="moneyline", line=None,

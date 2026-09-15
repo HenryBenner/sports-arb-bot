@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_FLOOR
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
 from zoneinfo import ZoneInfo
 
 from .config import Settings
@@ -56,6 +56,58 @@ VENUE_DATE_FIELDS = (
 )
 EVENT_DATE_ZONE = ZoneInfo("America/New_York")
 EVENT_DATE_END_OF_DAY = time(23, 59, 59)
+
+
+class StreamFailure(RuntimeError):
+    def __init__(self, exc: Exception, stream: Any = None) -> None:
+        self.exception_type = type(exc).__name__
+        self.exception_message = safe_exception_message(exc)
+        self.contexts = stream_contexts(stream)
+        super().__init__(f"{self.exception_type}: {self.exception_message}")
+
+
+def safe_exception_message(exc: Exception) -> str:
+    message = str(exc).strip() or "no exception message provided"
+    message = re.sub(r"(?i)\bbearer\s+[a-z0-9._~+/-]+=*", "Bearer [redacted]", message)
+    message = re.sub(
+        r"(?i)\b(authorization|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|secret|signature|private[-_ ]?key)\b\s*[:=]\s*[^\s,;]+",
+        lambda match: f"{match.group(1)}=[redacted]",
+        message,
+    )
+    return message
+
+
+def stream_contexts(stream: Any) -> tuple[dict[str, str], ...]:
+    contexts: list[dict[str, str]] = []
+    for leg in getattr(stream, "legs", ()) or ():
+        exchange = getattr(getattr(leg, "platform", None), "value", None)
+        side = getattr(getattr(leg, "side", None), "value", None)
+        context = {
+            "exchange": str(exchange or "unknown"),
+            "market_id": str(getattr(leg, "market_id", None) or "unknown"),
+        }
+        if side:
+            context["side"] = str(side)
+        if context not in contexts:
+            contexts.append(context)
+    if contexts:
+        return tuple(contexts)
+    class_name = type(stream).__name__.casefold() if stream is not None else ""
+    exchange = "kalshi" if "kalshi" in class_name else "polymarket" if "polymarket" in class_name else "unknown"
+    return ({"exchange": exchange, "market_id": "unknown"},)
+
+
+def stream_error_details(exc: Exception, stream: Any = None) -> list[dict[str, str]]:
+    failure = exc if isinstance(exc, StreamFailure) else StreamFailure(exc, stream)
+    return [
+        {
+            **context,
+            "exception_type": failure.exception_type,
+            "exception_message": failure.exception_message,
+            "message": failure.exception_message,
+        }
+        for context in failure.contexts
+    ]
 
 
 @dataclass(frozen=True)
@@ -931,9 +983,10 @@ class HotArbRunner:
                         f"near miss: {evaluation.pair_name} "
                         f"gross={evaluation.gross_cost_cents}c net={evaluation.net_profit_cents}c"
                     )
-        except RuntimeError as exc:
-            self._log_candidate(watch.opportunity, "stream_error", str(exc))
-            print(f"hot stream error: {watch.opportunity.group_title} reason={_short_reason(str(exc))}")
+        except Exception as exc:
+            self._log_stream_error(watch, exc)
+            message = safe_exception_message(exc)
+            print(f"hot stream error: {watch.opportunity.group_title} reason={_short_reason(message)}")
             await asyncio.sleep(1)
 
     def _event_type_block_reason(
@@ -1243,6 +1296,21 @@ class HotArbRunner:
             },
         )
 
+    def _log_stream_error(self, watch: HotWatch, exc: Exception) -> None:
+        base = {
+            "timestamp": self.clock().isoformat(),
+            "action": "stream_error",
+            "watch_id": watch.key,
+            "group_id": watch.opportunity.group_id,
+            "group_title": watch.opportunity.group_title,
+            "event_date": watch.opportunity.event_date,
+            "event_type": watch.opportunity.event_type,
+            "roi_pct": str(watch.opportunity.roi_pct),
+            "legs": [_ph_leg_record(leg) for leg in watch.opportunity.legs],
+        }
+        for detail in stream_error_details(exc):
+            self._write_jsonl("hot_candidates.jsonl", {**base, **detail})
+
     def _log_poll_error(self, message: str, consecutive_errors: int) -> None:
         self._write_jsonl(
             "hot_poll_errors.jsonl",
@@ -1437,7 +1505,7 @@ async def merge_streams(
             async for update in stream.listen_until(expires_at):
                 await queue.put(update)
         except Exception as exc:
-            await queue.put(exc)
+            await queue.put(StreamFailure(exc, stream))
 
     tasks = [asyncio.create_task(pump(stream)) for stream in streams]
     try:
@@ -1448,7 +1516,9 @@ async def merge_streams(
             except asyncio.TimeoutError:
                 break
             if isinstance(update, Exception):
-                raise RuntimeError(str(update)) from update
+                if isinstance(update, StreamFailure):
+                    raise update
+                raise StreamFailure(update) from update
             yield update
     finally:
         for task in tasks:

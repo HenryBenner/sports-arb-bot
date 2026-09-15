@@ -32,12 +32,22 @@ LEAGUE_SPORTS = {"mlb": "baseball", "npb": "baseball", "kbo": "baseball",
                  "nfl": "football", "cfb": "football", "nba": "basketball",
                  "wnba": "basketball", "cbb": "basketball", "nhl": "hockey",
                  "atp": "tennis", "wta": "tennis", "ufc": "mma"}
-LEAGUE_ALIASES = {"ncaa football": "cfb", "ncaa-football": "cfb", "ncaa basketball": "cbb",
-                  "ncaa-basketball": "cbb", "itfme": "itf men", "itf-men": "itf men",
-                  "itfwo": "itf women", "itf-women": "itf women", "atp challenger": "challenger"}
-LEAGUE_SPORTS.update({"itf men": "tennis", "itf women": "tennis", "challenger": "tennis"})
+LEAGUE_ALIASES = {
+    "ncaa football": "cfb", "ncaa-football": "cfb",
+    "ncaa basketball": "cbb", "ncaa-basketball": "cbb",
+    "itfme": "itf men", "itf-men": "itf men", "itf men": "itf men",
+    "itfwo": "itf women", "itf-women": "itf women", "itf women": "itf women",
+    "atp challenger": "challenger", "atp-challenger": "challenger",
+    # Deterministic soccer feed aliases. These deliberately do not include cups,
+    # lower divisions, women's, reserve, or youth competitions.
+    "por": "ligpor", "ligpor": "ligpor",
+    "den": "sld", "sld": "sld",
+}
+LEAGUE_SPORTS.update({"itf": "tennis", "itf men": "tennis", "itf women": "tennis",
+                      "challenger": "tennis", "ligpor": "soccer", "sld": "soccer"})
 MOVABLE_START_SPORTS = {"tennis", "cricket", "mma", "boxing"}
 SPORT_ALIASES = {"american football": "football", "ice hockey": "hockey", "ice-hockey": "hockey", "american-football": "football", "mixed martial arts": "mma"}
+ITF_LEAGUES = {"itf", "itf men", "itf women"}
 
 
 class MappingRejected(RuntimeError):
@@ -170,6 +180,17 @@ def sport_league(event: dict) -> tuple[str, str]:
         if len(sports) == 1:
             sport = sports.pop()
     return required(SPORT_ALIASES.get(sport, sport), "sport"), required(league, "league/competition")
+
+
+def leagues_compatible(left: str, right: str, sport: str) -> bool:
+    """Return deterministic league compatibility without erasing ITF gender."""
+    if left == right:
+        return True
+    if sport != "tennis" or left not in ITF_LEAGUES or right not in ITF_LEAGUES:
+        return False
+    # A generic label may be completed by the other feed. Explicit men/women
+    # labels remain incompatible with each other.
+    return "itf" in {left, right}
 
 
 @dataclass(frozen=True)
@@ -371,6 +392,54 @@ def fingerprint(event: dict, market: dict, label: str, team: str = "") -> Contra
 
 
 def differences(a: Any, b: Any) -> list[str]:
+    if isinstance(a, EventFingerprint) and isinstance(b, EventFingerprint):
+        result: list[str] = []
+        if a.sport != b.sport:
+            result.append(f"reason=sport_conflict sport mismatch international={a.sport} us={b.sport}")
+        if not leagues_compatible(a.league, b.league, a.sport) or a.sport != b.sport:
+            result.append(f"reason=league_conflict league mismatch international={a.league} us={b.league}")
+        if a.participants != b.participants:
+            result.append(
+                f"reason=participant_mismatch participants mismatch international={a.participants} us={b.participants}"
+            )
+
+        if a.scheduled != b.scheduled:
+            delta = abs((a.scheduled - b.scheduled).total_seconds())
+            same_date = a.scheduled.date() == b.scheduled.date()
+            tennis_fixture = (
+                a.sport == b.sport == "tennis"
+                and a.participants == b.participants
+                and leagues_compatible(a.league, b.league, "tennis")
+            )
+            movable = a.sport == b.sport and a.sport in MOVABLE_START_SPORTS
+            if not (
+                (tennis_fixture and same_date and delta <= 18 * 3600)
+                or (movable and same_date and a.competition and a.competition == b.competition and delta <= 18 * 3600)
+                or (not movable and same_date and delta <= 30 * 60)
+            ):
+                result.append(
+                    f"reason=scheduled_time_conflict scheduled mismatch international={a.scheduled} us={b.scheduled}"
+                )
+
+        for field_name, reason in (
+            ("game_number", "game_number_conflict"),
+            ("competition", "tournament_conflict"),
+            ("event_name", "event_name_conflict"),
+            ("round", "round_conflict"),
+        ):
+            left, right = getattr(a, field_name), getattr(b, field_name)
+            # Tennis tournament and round metadata are corroborating fields:
+            # absence is allowed, but an explicit disagreement is never allowed.
+            if a.sport == b.sport == "tennis" and field_name in {"competition", "round"}:
+                mismatch = bool(left and right and left != right)
+            else:
+                mismatch = left != right
+            if mismatch:
+                result.append(
+                    f"reason={reason} {field_name} mismatch international={left} us={right}"
+                )
+        return result
+
     result = []
     for field in fields(a):
         left, right = getattr(a, field.name), getattr(b, field.name)
@@ -554,7 +623,12 @@ class InternationalMarketMapper:
         events: dict[str, dict] = {}
         # One event search, paginated to exhaustion. Never approve a truncated set.
         for page in range(1, 21):
-            response = self.us._client().search.query({"query": query, "limit": 100, "page": page})
+            response = self._us_read(
+                "search.query",
+                lambda page=page: self.us._client().search.query(
+                    {"query": query, "limit": 100, "page": page}
+                ),
+            )
             if not isinstance(response, dict) or not isinstance(response.get("events"), list):
                 raise MappingRejected("invalid US event search response")
             batch = response["events"]
@@ -568,6 +642,12 @@ class InternationalMarketMapper:
             if len(batch) < 100:
                 return list(events.values())
         raise MappingRejected("US event search incomplete: pagination limit")
+
+    def _us_read(self, operation: str, request: Callable[[], Any]) -> Any:
+        """Use the venue's bounded read retry when the concrete client provides it."""
+        if callable(getattr(type(self.us), "_read_only", None)):
+            return self.us._read_only(operation, request)
+        return request()
 
     def inspect(self, token: str, side: Side) -> dict:
         """Read-only identity and rules evidence; this never authorizes an order."""
@@ -585,6 +665,8 @@ class InternationalMarketMapper:
         if len(candidates) != 1 or len(approved) != 1 or report["unresolved_candidates"]:
             reasons = [c["rules_status"] for c in candidates
                        if c["rules_status"] != "exact" and not c["rules_status"].startswith("warning:")] + report["reasons"]
+            if len(candidates) > 1 or len(approved) > 1:
+                reasons.insert(0, "reason=ambiguous_fixture")
             details = "; ".join(dict.fromkeys(reasons))
             raise MappingRejected(f"verified_matches={len(approved)} identity_matches={len(candidates)} "
                                   f"unresolved_candidates={report['unresolved_candidates']}" +
@@ -624,7 +706,7 @@ class InternationalMarketMapper:
                     discovery_reasons.extend(event_errors)
                     # Show same-fixture candidates with discrepant times for
                     # diagnostics only. They can never enter the approved set.
-                    if not (all(e.startswith("scheduled mismatch") for e in event_errors) and
+                    if not (all("scheduled mismatch" in e for e in event_errors) and
                             source.event.scheduled.date() == candidate_key.scheduled.date()):
                         continue
                     reasons.extend(event_errors)
@@ -636,7 +718,10 @@ class InternationalMarketMapper:
             slug = str(candidate["slug"])
             located_events.append(slug)
             full = self._cached(("us_event", slug), self.failure_ttl,
-                                lambda: self.us._client().events.retrieve_by_slug(slug))
+                                lambda: self._us_read(
+                                    "events.retrieve_by_slug",
+                                    lambda: self.us._client().events.retrieve_by_slug(slug),
+                                ))
             if isinstance(full, dict) and isinstance(full.get("event"), dict):
                 full = full["event"]
             if not isinstance(full, dict) or str(full.get("slug")) != slug or not isinstance(full.get("markets"), list):
@@ -691,6 +776,9 @@ class InternationalMarketMapper:
             reasons = [f"no US market with type={source.market_type} period={source.period} in located event"] + reasons
         else:
             reasons = [r for r in reasons if not r.startswith("market_type/period mismatch")]
+        if len(located_events) > 1:
+            uncertain = True
+            reasons.insert(0, "reason=ambiguous_fixture")
         unique = list(dict.fromkeys(reasons))
         unique.sort(key=lambda r: ("settlement" not in r, "line mismatch" not in r))
         return {"international_id": token, "international_question": market.get("question"),

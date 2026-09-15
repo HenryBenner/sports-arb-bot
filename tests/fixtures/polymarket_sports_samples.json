@@ -1478,14 +1478,14 @@
           }
         ]
       },
-      "expected": [],
-      "expected_near": [
+      "expected": [
         {
           "slug": "aec-atp-frapas-juavar-2026-09-09",
           "side": "no"
         }
       ],
-      "note": "Replay of collected event metadata locates this time-mismatched candidate; the later live search returned no candidate."
+      "expected_near": [],
+      "note": "Exact players and event date identify the unique ATP fixture despite a five-minute schedule movement."
     },
     {
       "label": "atp-hemery-lajovic-2026-09-10",
@@ -1648,13 +1648,13 @@
           }
         ]
       },
-      "expected": [],
-      "expected_near": [
+      "expected": [
         {
           "slug": "aec-atp-calhem-duslaj-2026-09-10",
           "side": "no"
         }
-      ]
+      ],
+      "expected_near": []
     },
     {
       "label": "nba-dal-was-2025-11-09",

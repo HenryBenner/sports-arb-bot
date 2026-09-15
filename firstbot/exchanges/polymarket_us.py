@@ -4,8 +4,9 @@ import base64
 import importlib.util
 import logging
 import os
+import time
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import unquote, urlsplit
 
 from ..models import BookLevel, Exchange, FeeSchedule, OrderBook, Side
@@ -21,6 +22,13 @@ TERMINAL_EMPTY_STATES = {
     "order_state_canceled", "order_state_cancelled", "order_state_expired",
     "order_state_rejected", "canceled", "cancelled", "expired", "rejected",
 }
+TRANSIENT_READ_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524}
+TRANSIENT_READ_MARKERS = (
+    "cloudflare", "gateway.polymarket", "bad gateway", "gateway timeout",
+    "temporarily unavailable", "temporary gateway", "connection reset",
+    "connection aborted", "connection closed", "timed out", "timeout",
+    "access denied",
+)
 
 
 class PolymarketUSClient:
@@ -39,6 +47,9 @@ class PolymarketUSClient:
         sdk_client: Any | None = None,
         gamma_url: str = "https://gamma-api.polymarket.com",
         http: Any | None = None,
+        read_retries: int = 2,
+        read_retry_backoff_seconds: float = 0.25,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.public_url = public_url.rstrip("/")
         self.api_url = api_url.rstrip("/")
@@ -49,6 +60,9 @@ class PolymarketUSClient:
         self.secret_key = secret_key
         self.timeout = timeout
         self._sdk_client = sdk_client
+        self.read_retries = max(0, int(read_retries))
+        self.read_retry_backoff_seconds = max(0.0, float(read_retry_backoff_seconds))
+        self._sleep = sleep
         self.international_mapper = InternationalMarketMapper(self, gamma_url, http)
 
     def _client(self) -> Any:
@@ -91,13 +105,15 @@ class PolymarketUSClient:
         return "OK"
 
     def get_events(self, **params: Any) -> Any:
-        return self._client().events.list(params)
+        return self._read_only("events.list", lambda: self._client().events.list(params))
 
     def get_markets(self, **params: Any) -> Any:
-        return self._client().markets.list(params)
+        return self._read_only("markets.list", lambda: self._client().markets.list(params))
 
     def get_market_by_slug(self, slug: str) -> dict[str, Any]:
-        result = self._client().markets.retrieve_by_slug(slug)
+        result = self._read_only(
+            "markets.retrieve_by_slug", lambda: self._client().markets.retrieve_by_slug(slug)
+        )
         if isinstance(result, dict) and isinstance(result.get("market"), dict):
             result = result["market"]
         if not isinstance(result, dict):
@@ -261,7 +277,7 @@ class PolymarketUSClient:
         )
 
     def available_cash_usd(self) -> Decimal:
-        raw = self._client().account.balances()
+        raw = self._read_only("account.balances", lambda: self._client().account.balances())
         balances = raw.get("balances") if isinstance(raw, dict) else None
         if not isinstance(balances, list):
             balances = [raw] if isinstance(raw, dict) else []
@@ -322,7 +338,9 @@ class PolymarketUSClient:
 
     def get_order(self, order_id: str) -> dict[str, Any]:
         return self._normalize_order_result(
-            self._client().orders.retrieve(order_id), None, require_fill=False
+            self._read_only("orders.retrieve", lambda: self._client().orders.retrieve(order_id)),
+            None,
+            require_fill=False,
         )
 
     def cancel_order(self, order_id: str) -> dict[str, Any]:
@@ -345,11 +363,28 @@ class PolymarketUSClient:
         return websocket
 
     def _book_data(self, slug: str) -> dict[str, Any]:
-        raw = self._client().markets.book(slug)
+        raw = self._read_only("markets.book", lambda: self._client().markets.book(slug))
         data = raw.get("marketData") if isinstance(raw, dict) else None
         if not isinstance(data, dict):
             raise RuntimeError(f"Polymarket US book returned invalid data for {slug}: {raw}")
         return data
+
+    def _read_only(self, operation: str, request: Callable[[], Any]) -> Any:
+        """Retry only transient, side-effect-free SDK reads; never submissions."""
+        for attempt in range(self.read_retries + 1):
+            try:
+                return request()
+            except Exception as exc:
+                if attempt >= self.read_retries or not _is_transient_read_error(exc):
+                    raise
+                delay = self.read_retry_backoff_seconds * (attempt + 1)
+                LOG.warning(
+                    "polymarket_us_read_retry operation=%s attempt=%s max_attempts=%s "
+                    "exception=%s backoff_seconds=%s",
+                    operation, attempt + 1, self.read_retries + 1,
+                    type(exc).__name__, delay,
+                )
+                self._sleep(delay)
 
     @staticmethod
     def _offer_levels(data: dict[str, Any]) -> list[BookLevel]:
@@ -447,3 +482,23 @@ def _market_slug_from_url(url: str | None) -> str | None:
             if index < len(parts):
                 return parts[index]
     return parts[-1] if parts else None
+
+
+def _is_transient_read_error(exc: Exception) -> bool:
+    current: BaseException | None = exc
+    while current is not None:
+        status = getattr(current, "status_code", None) or getattr(current, "status", None)
+        response = getattr(current, "response", None)
+        status = status or getattr(response, "status_code", None) or getattr(response, "status", None)
+        try:
+            if int(status) in TRANSIENT_READ_STATUS_CODES:
+                return True
+        except (TypeError, ValueError):
+            pass
+        if isinstance(current, (ConnectionError, TimeoutError)):
+            return True
+        message = str(current).casefold()
+        if any(marker in message for marker in TRANSIENT_READ_MARKERS):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
